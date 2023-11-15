@@ -54,15 +54,30 @@ treeStats = function(treeInput) {
 metricsForManyTrees = function(treefiles = NULL, 
                                minimumTreeSize = 20, 
                                fileOut, 
-                               treedir = 'trees') {
+                               treedir = 'trees', 
+                               append = TRUE) {
   
   if(is.null(treefiles)) {
     treefiles = list.files(treedir)[grepl(".tre", list.files(treedir))]
   }  
   
-  sink(fileOut)
-  cat(paste("model", "simID", "number_of_lineages", "tree_height", "phylogenetic_div", "gamma", "beta", "colless", "sackin", "var_depth", "psv", "i_stat", "mpd", "vpd", "laplac_spectrum_e", "laplac_spectrum_a", "laplac_spectrum_p", "laplac_spectrum_g", "nltt_base", "blum", "crown_age", "pigot_rho", "avg_ladder", "max_ladder", "cherries", "il_number", "pitchforks", "stairs", "imbalance_steps", "j_one", "b1", "b2", "area_per_pair", "average_leaf_depth", "ew_colless", "max_del_width", "max_depth", "max_width", "rogers", "stairs2", "tot_coph", "symmetry_nodes", "mntd", "j_stat", "rquartet", "wiener", "max_betweenness", "max_closeness", "diameter", "eigenvector", "mean_branch_length", "var_branch_length", "mean_branch_length_int", "mean_branch_length_ext", "var_branch_length_int", "var_branch_length_ext", "\n", sep = "\t"))
-  sink()
+  # If append == FALSE, then create a new file with tree metric headers
+  if (!append) {
+    sink(fileOut)
+    cat(paste("model", "simID", "number_of_lineages", "tree_height", "phylogenetic_div", 
+              "gamma", "beta", "colless", "sackin", "var_depth", "psv", "i_stat", "mpd", 
+              "vpd", "laplac_spectrum_e", "laplac_spectrum_a", "laplac_spectrum_p", 
+              "laplac_spectrum_g", "nltt_base", "blum", "crown_age", "pigot_rho", 
+              "avg_ladder", "max_ladder", "cherries", "il_number", "pitchforks", 
+              "stairs", "imbalance_steps", "j_one", "b1", "b2", "area_per_pair", 
+              "average_leaf_depth", "ew_colless", "max_del_width", "max_depth", 
+              "max_width", "rogers", "stairs2", "tot_coph", "symmetry_nodes", "mntd", 
+              "j_stat", "rquartet", "wiener", "max_betweenness", "max_closeness", 
+              "diameter", "eigenvector", "mean_branch_length", "var_branch_length", 
+              "mean_branch_length_int", "mean_branch_length_ext", "var_branch_length_int", 
+              "var_branch_length_ext", "\n", sep = "\t"))
+    sink()
+  }
 
     for (treefile in treefiles) {
     
