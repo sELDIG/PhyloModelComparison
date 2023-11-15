@@ -5,6 +5,7 @@ library(devtools)
 library(treestats)
 library(ape)
 library(geiger)
+library(stringr)
 
 # Calculating various attributes on a phylogeny in Newick format using
 # Thijs Janzen's treestats package
