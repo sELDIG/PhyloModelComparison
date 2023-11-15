@@ -1,7 +1,7 @@
 ###########################################################################
 
 library(devtools)
-install_github("thijsjanzen/treestats")
+#install_github("thijsjanzen/treestats")
 library(treestats)
 library(ape)
 library(geiger)
