@@ -13,7 +13,7 @@ editor_options:
 cacheData = F
 ```
 
-# Calculate tree metrics
+# Calculate tree metrics and align with model processes
 
 ```{r}
 source('code/analysis_functions.r')
