@@ -20,7 +20,7 @@ source('code/analysis_functions.r')
 
 metricsForManyTrees(list.files("trees/uniform_sampling_experiment"),
                     treedir = "trees/uniform_sampling_experiment",
-                    treefileOut = "derived_tree_data/USE_treeStats.txt", append = F)
+                    fileOut = "derived_tree_data/USE_treeStats.txt", append = F)
 
 
 # Parameter key across simulations; 
