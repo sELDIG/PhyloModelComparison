@@ -1,9 +1,4 @@
 ###########################################################################
-# Calculating various attributes on a phylogeny in Newick format using
-# Thijs Janzen's treestats package
-# https://github.com/thijsjanzen/treestats
-#
-#   treeInput: a phylogenetic tree of class phylo
 
 library(devtools)
 install_github("thijsjanzen/treestats")
@@ -11,6 +6,11 @@ library(treestats)
 library(ape)
 library(geiger)
 
+# Calculating various attributes on a phylogeny in Newick format using
+# Thijs Janzen's treestats package
+# https://github.com/thijsjanzen/treestats
+#
+#   treeInput: a phylogenetic tree of class phylo
 
 treeStats = function(treeInput) {
   
@@ -25,7 +25,7 @@ treeStats = function(treeInput) {
   
   # Prune out extinct species
   treeExtant = tryCatch({
-    drop.extinct(treeInput, tol = 1e-8)
+    drop.extinct(treeInput, tol = 1e-7)
   }, error = function(e) {
     treeExtant = drop.fossil(treeInput)
   })
