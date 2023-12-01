@@ -163,10 +163,10 @@ for(i in 1:length(statisticsIndices)){
     }
     R2MatFull[i,j,] = R2
     signMatFull[i,j,] = sig
-    R2Mat[i,j] = mean(R2, na.rm = T)
-    signMat[i,j] = sum(sig, na.rm = T) / sum(!is.na(sig))
-    disAg[i,j] = abs(sum(sig == 1, na.rm = T) - sum(sig == -1, na.rm = T)) / abs(sum(sig %in% c(1,-1), na.rm = T))
-    disAg2[i,j] = max(sum(sig == 1, na.rm = T), sum(sig == -1, na.rm = T)) / abs(sum(sig %in% c(1,-1), na.rm = T))
+    #R2Mat[i,j] = mean(R2, na.rm = T)
+    #signMat[i,j] = sum(sig, na.rm = T) / sum(!is.na(sig))
+    #disAg[i,j] = abs(sum(sig == 1, na.rm = T) - sum(sig == -1, na.rm = T)) / abs(sum(sig %in% c(1,-1), na.rm = T))
+    #disAg2[i,j] = max(sum(sig == 1, na.rm = T), sum(sig == -1, na.rm = T)) / abs(sum(sig %in% c(1,-1), na.rm = T))
   }
 }
 ```
@@ -177,7 +177,7 @@ Definition of image plot
 
 ```{r}
 image.real3d <- function(mat, mat2, xCol = c("darkblue","blue", "cyan", "gray94", "coral","red", "darkred"), 
-                       range = c(-1,1), x.labels = dimnames(mat)[[1]],      y.labels = dimnames(mat)[[2]]) { 
+                       range = c(-1,1), x.labels = dimnames(mat)[[1]],      y.labels = dimnames(mat)[[2]], alpha = .01) { 
   
   newMat = matrix(nrow = dim(mat)[1], ncol = 50)
   for(i in 1:dim(mat)[1]){
@@ -204,7 +204,7 @@ image.real3d <- function(mat, mat2, xCol = c("darkblue","blue", "cyan", "gray94"
   for(i in 1:dim(mat2)[1]){
     for(k in 1:dim(mat2)[2]){
        for(j in 1:dim(mat2)[3])
-        if(!is.na(mat2[i,k,j]) & mat2[i,k,j] < 0.05){
+        if(!is.na(mat2[i,k,j]) & mat2[i,k,j] < alpha){
           text(x = 10*(k-1) +j,  y = i, labels = "*" )
       }
     }
@@ -218,9 +218,6 @@ par(mar = c(5,10,5,3))
 # Tidier labels
 alt.x.labels = dimnames(R2MatFull)[[1]]
 
-#NOTE: The following line only works if statisticsIndices was originally assigned statisticsIndices1 (with 19 elements)
-#alt.x.labels[c(7, 11, 14, 15, 16, 17, 18)] = c("Yule-PDA ratio", "mean I'", "MGL prin. eigenvalue", "MGL asymmetry", "MGL peakedness", "MGL eigengap", "nLTT stat")
-
 # Modifying a few model abbreviations here (e.g. am and pw)
 dimnames(R2MatFull)[[3]] = c("ca", "fh", "gen", "hs", "am", "pw", "ve", "xe")
 
@@ -232,76 +229,6 @@ mtext("Processes", 3, cex = 2, line = 3)
 
 ```
 
-## Plot averaged across models
-
-Define plotting function for 2d
-
-IS THIS SECTION STILL NECESSARY? CURRENTLY THROWING ERRORS
-
-```{r}
-
-image.real <- function(mat, xCol = c("blue", "white", "white", "red"), 
-                       range = c(-1,1), x.labels = rownames(mat), y.labels = colnames(mat)) { 
-  mat <- t(mat)[,nrow(mat):1]
-  fields::image.plot(mat, axes = FALSE, zlim = range, 
-                     col = colorRampPalette(xCol)(30))
-  axis(1, at = seq(0, 1, length = nrow(mat)), labels = x.labels)
-  axis(2, at = seq(0, 1, length = ncol(mat)), labels = y.labels, las = 2)
-  box() 
-}
-
-
-# 2-panel figure
-par(mfrow = c(1, 2), mar = c(3,11,3,3))
-
-# Values: % agreement, Color: average sign
-image.real(signMat, x.labels = c('env', 'dis', 'nic', 'mut', 'com')) 
-
-for(i in 1:length(statisticsIndices)){
-  for(j in 1:length(predictorsIndices)){
-    text((j-1)/(length(predictorsIndices)-1),
-         1-(i-1)/(length(statisticsIndices)-1), 
-         labels = 100*round(disAg2[i,j], digits = 2))
-  }
-}
-mtext(paste0(rep("(", 5), numModelsPerPredictor, rep(")", 5)), 1, at = seq(0, 1, length = ncol(signMat)), line = 2)
-title(main = "% agreement in effect direction")
-
-# Values: average correlation coefficient, Color: average sign
-image.real(signMat, x.labels = c('env', 'dis', 'nic', 'mut', 'com')) 
-for(i in 1:length(statisticsIndices)){
-  for(j in 1:length(predictorsIndices)){
-    text((j-1)/(length(predictorsIndices)-1),
-         1-(i-1)/(length(statisticsIndices)-1), 
-         labels = round(R2Mat[i,j], digits = 2))
-  }
-}
-mtext(paste0(rep("(", 5), numModelsPerPredictor, rep(")", 5)), 1, at = seq(0, 1, length = ncol(signMat)), line = 2)
-title(main = "Average correlation coefficient")
-
-
-image.real(R2Mat, range = c(-1,1), xCol = c("beige", "firebrick2")) 
-title(main = "R2 between parameter and tree metric")
-
-for(i in 1:length(statisticsIndices)){
-  for(j in 1:length(predictorsIndices)){
-    text((j-1)/(length(predictorsIndices)-1),
-         1-(i-1)/(length(statisticsIndices)-1), 
-         labels = round(R2Mat[i,j], digits = 2))
-  }
-}
-
-
-image.real(disAg2) 
-for(i in 1:length(statisticsIndices)){
-  for(j in 1:length(predictorsIndices)){
-    text((j-1)/(length(predictorsIndices)-1),
-         1-(i-1)/(length(statisticsIndices)-1), 
-         labels = round(disAg[i,j], digits = 2))
-  }
-}
-
-```
 
 # Model inversion
 
@@ -355,21 +282,7 @@ for(j in 1:length(predictorsIndices)){
 
 ## Predictability within a model
 
-Internally calculated R2 values from the ranger package
-
-```{r}
-image.real(predictability2R2, range = c(0,1), xCol = c("beige", "firebrick2"))
-title(main = "Random forest [R2] (non-richness metrics)")
-```
-
-The internally caluclated R2 values of a RF can sometimes be misleading. That's why we additionaly calculated R2 values from a 5-fold CV in the calculation loop above. Results are very similar
-
-```{r}
-image.real(predictabilityR2CV, range = c(0,1), xCol = c("beige", "firebrick2"))
-title(main = "Random forest [R2] CV predictability (non-richness metrics)")
-```
-
-The same as a barplot
+The internally calculated R2 values of a RF can sometimes be misleading. That's why we additionally calculated R2 values from a 5-fold CV in the calculation loop above. Results are very similar.
 
 ```{r}
 par(mar = c(4, 6, 0, 0), mgp = c(4, 1, 0))
@@ -387,25 +300,6 @@ for(i in 1:length(x)){
   }
 }
 
-```
-
-```{r}
-predMean2 = apply(predictability2, c(1,2), mean, na.rm = T)
-predSD2 = apply(predictability2, c(1,2), sd, na.rm = T)
-
-rownames(predMean2) = statistics2
-colnames(predMean2) = predictors
-
-image.real(predMean2, range = NULL, xCol = c("beige", "firebrick2"))
-title(main = "mean variable importance (non-richness metrics)")
-
-for(i in 1:length(statisticsIndices2)){
-  for(j in 1:length(predictorsIndices)){
-    text((j-1)/(length(predictorsIndices)-1),
-         1-(i-1)/(length(statisticsIndices2)-1), 
-         labels = round(predMean2[i,j] / predSD2[i,j], digits = 2))
-  }
-}
 ```
 
 ## Between models
