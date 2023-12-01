@@ -18,17 +18,15 @@ cacheData = F
 ```{r}
 source('code/analysis_functions.r')
 
-metricsForManyTrees(list.files("trees/uniform_sampling_experiment"),
-                    treedir = "trees/uniform_sampling_experiment",
-                    fileOut = "derived_tree_data/USE_treeStats.txt")
+#metricsForManyTrees(list.files("trees/uniform_sampling_experiment"),
+#                    treedir = "trees/uniform_sampling_experiment",
+#                    fileOut = "derived_tree_data/USE_treeStats.txt")
 
 
 # Parameter key across simulations; 
 # url <- 'https://docs.google.com/spreadsheets/d/1pcUuINauW11cE5OpHVQf_ZuzHzhm2VJkCn7-lSEJXYI/edit#gid=1171496897'
 # paramKey <- gsheet2tbl(url)
-# write.csv(paramKey, 'derived_tree_data/simulation_parameters_key.csv', row.names = F)
-
-paramKey = read.csv('derived_tree_data/simulation_parameters_key.csv')
+# write.csv(paramKey, 'trees/uniform_sampling_experiment/paramKeys/simulation_parameters_key.csv', row.names = F)
 
 # Align parameter values with the relevant experiment, create a dataframe with columns for
 # model, model2 (with scenario suffix if appropriate), simID, and columns for the parameter
@@ -39,9 +37,9 @@ modelList = c('ca', 'fh', 'gen', 'hs', 'pontarp', 've', 'xe', 'la')
 for (m in modelList) {
   
   if (!exists("processDF")) {
-    processDF = alignParametersWithProcesses(m)
+    processDF = alignParametersWithProcesses(m, paramKeyPath = 'trees/uniform_sampling_experiment/paramKeys')
   } else {
-    processDF = rbind(processDF, alignParametersWithProcesses(m))
+    processDF = rbind(processDF, alignParametersWithProcesses(m, paramKeyPath = 'trees/uniform_sampling_experiment/paramKeys'))
   }
   
 }
@@ -53,9 +51,9 @@ for (m in modelList) {
 treeOutput = read.table('derived_tree_data/USE_treeStats.txt', sep = '\t', header = T)
 
 # Join process-parameter linkage dataframe to tree output
-processDFmetrics = left_join(processDF, treeOutput, by = c('model', 'simID'))
+simuData = left_join(processDF, treeOutput, by = c('model', 'simID'))
 
-write.csv(processDFmetrics, 
+write.csv(simuData, 
           'derived_tree_data/process_parameter_values_and_tree_metrics_sign_corrected.csv', row.names = F)
 
 
@@ -72,14 +70,21 @@ library(stringr)
 library(heatmaply)
 
 # Read in simulated tree data
-simuData <- read.csv("derived_tree_data/process_parameter_values_and_tree_metrics_sign_corrected.csv", stringsAsFactors = T)
-simuDataKey <- read.csv("derived_tree_data/simulation_parameters_key.csv")
+allSimuData <- read.csv("derived_tree_data/process_parameter_values_and_tree_metrics_sign_corrected.csv", stringsAsFactors = T)
 
-head(simuDataKey)
+simuData = dplyr::select(allSimuData, -tree_height, -crown_age)
 
-statisticsIndices1 = c(25, 27:43) # all 18 tree metrics
-statisticsIndices2 = c(28, 29, 33:43) # # Only the tree metrics not strongly correlated with richness, --excluding log10S, PD, Colless, Sackin, Yule.PDA.ratio
-statisticsIndices3 = c(25, 27:50) # all 18 tree metrics plus first 7 PCA
+# Visualize correlation matrix of tree metrics
+metricCors = cor(simuData[, 24:75], use = "pairwise.complete.obs")
+
+# Metrics strongly correlated (> 0.9) with number_of_lineages
+richnessCorrelatedMetrics = row.names(metricCors)[metricCors[,1] >= 0.9]
+
+# all 52 tree metrics
+statisticsIndices1 = which(names(simuData) %in% row.names(metricCors))
+# Only the tree metrics not strongly correlated with richness
+statisticsIndices2 = which(names(simuData) %in% row.names(metricCors) & 
+                             !names(simuData) %in% richnessCorrelatedMetrics) 
 
 # Indices for the 5 simulation processes (env, dis, mut, nic, com)
 predictorsIndices = c(14,16,18,20,22)
@@ -103,7 +108,6 @@ TODO - add correlation analysis between metrics that was previously in the metho
 corrs = cor(simuData[, statisticsIndices1], use = "pairwise.complete.obs", )
 
 metricNames = colnames(simuData)[statisticsIndices1]
-metricNames[metricNames == "mean.Iprime"] = "mean I'"
 
 colnames(corrs) = metricNames
 rownames(corrs) = metricNames
