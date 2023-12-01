@@ -6,6 +6,7 @@ library(treestats)
 library(ape)
 library(geiger)
 library(stringr)
+library(dplyr)
 
 # Calculating various attributes on a phylogeny in Newick format using
 # Thijs Janzen's treestats package
@@ -179,9 +180,9 @@ metricsForManyTrees = function(treefiles = NULL,
 # Parameters are multiplied by the sign specified in the above spreadsheet to ensure that the strength of the process
 # increases with an increase in the parameter value.
 
-alignParametersWithProcesses = function(modelAbbrev) {
+alignParametersWithProcesses = function(modelAbbrev, paramKeyPath) {
   
-  params = read.csv(paste("trees/uniform_sampling_experiment/", modelAbbrev, "_USE_parameters.csv", sep = ""), header = T)
+  params = read.csv(paste(paramKeyPath, "/", modelAbbrev, "_USE_parameters.csv", sep = ""), header = T)
   
   if ("scenario" %in% names(params)) {
     params$model2 = paste(modelAbbrev, ".", params$scenario, sep = "")
@@ -190,7 +191,7 @@ alignParametersWithProcesses = function(modelAbbrev) {
   }
   
   # Here we drop the scenario description, assuming that the process-parameter association is not scenario-dependent
-  paramKey <- read.csv('experiments/uniform_sampling_experiment/simulation_parameters_key.csv', header = T) %>% 
+  paramKey <- read.csv(paste(paramKeyPath, "/", "simulation_parameters_key.csv", sep = ""), header = T) %>% 
     mutate(model = word(model, sep = "\\.")) %>%
     dplyr::filter(model == modelAbbrev) %>%
     distinct()
