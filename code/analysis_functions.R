@@ -78,6 +78,7 @@ metricsForManyTrees = function(treefiles = NULL,
               "mean_branch_length_int", "mean_branch_length_ext", "var_branch_length_int", 
               "var_branch_length_ext", "\n", sep = "\t"))
     sink()
+    
   }
 
     for (treefile in treefiles) {
@@ -98,15 +99,12 @@ metricsForManyTrees = function(treefiles = NULL,
       cat(paste(model, 
                 simID,
                 metrics$number_of_lineages, 
-                #metrics$log10S,
                 metrics$tree_height,
                 metrics$phylogenetic_div, 
                 metrics$gamma,
                 metrics$beta, 
                 metrics$colless, 
                 metrics$sackin,
-                #metrics$Yule.PDA.ratio, 
-                #metrics$MRD, 
                 metrics$var_depth, #VRD
                 metrics$psv, 
                 metrics$i_stat,    #mean.Iprime
