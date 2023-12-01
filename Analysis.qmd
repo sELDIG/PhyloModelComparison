@@ -285,14 +285,25 @@ for(j in 1:length(predictorsIndices)){
 The internally calculated R2 values of a RF can sometimes be misleading. That's why we additionally calculated R2 values from a 5-fold CV in the calculation loop above. Results are very similar.
 
 ```{r}
+modelColors = data.frame(model = models,
+                         newLabel = c('ca', 'fh', 'gen', 'hs', 'am', 'pw', 've', 'xe'),
+                         color = c(rgb(0,0,0),
+                                   rgb(230/255, 159/255, 0),
+                                   rgb(86/255, 180/255, 233/255),
+                                   rgb(0, 158/255, 115/255),
+                                   rgb(240/255, 228/255, 66/255),
+                                   rgb(0, 114/255, 178/255),
+                                   rgb(213/255, 94/255, 0),
+                                   rgb(204/255, 121/255, 167/255)))
+
 par(mar = c(4, 6, 0, 0), mgp = c(4, 1, 0))
 
-x = barplot(t(predictabilityR2CV), beside = T, las = 1, horiz = F, ylim = c(0,1.1), ylab = "Predicted-observed correlation", xaxt = "n", cex.lab = 1.8, cex.axis = 1.6)
+x = barplot(t(predictabilityR2CV), beside = T, las = 1, horiz = F, ylim = c(0,1.1), ylab = "Predicted-observed correlation", xaxt = "n", cex.lab = 1.8, cex.axis = 1.6, col = modelColors$color)
 
 x = as.vector(x)
 x2 = as.vector(t(predictabilityR2CV))
 
-axis(1, at = x[c(4, 12, 20, 28, 36)], labels = c("env.\nfiltering", "dispersal", "niche\nconserv.", "mutation/\nspeciation", "competition"), cex.axis = 1.6, line =1, tick = F)
+axis(1, at = x[c(4, 12, 20, 28, 36)], labels = c("env.\nfiltering", "dispersal", "niche\nconserv.", "mutation/\nspeciation", "competition"), cex.axis = 1.6, line = 1.3, tick = F)
 
 for(i in 1:length(x)){
   if(!is.na(x2[i])){
@@ -378,16 +389,20 @@ Run random forests within each simulation model in order to predict model parame
 ```{r}
 
 # run a version of metricsForManyTrees() to get tree metric output for empirical sister clades (but that function assumes diff model ID naming convention, so had to manually tweak)
-empiricalMetrics = read.table('empiricalSisterClades_treeOutput.txt', header = T, sep = '\t')
+allEmpiricalMetrics = read.table('derived_tree_data/empiricalSisterClades_treeStats.txt', header = T, sep = '\t')
+# Filter out hippo and primate clade pairs because of small size
+empiricalMetrics = filter(allEmpiricalMetrics, !simID %in% c(3,7))
 empiricalMetrics$clade = rep(c(1,2), 6)
+empiricalMetrics$pair = empiricalMetrics$simID
 empiricalMetrics$cladeName = c('Xenarthra', 'Afrotheria',
                                'Carnivora/\nPerissodactyla', 'Cetartiodactyla',
                                'Apodi', 'Trochili',
                                'Rodentia', 'Lagomorpha',
                                'Coraciiformes', 'Passeriformes',
                                'Pelecaniformes', 'Ciconiiformes')
-empMetrics = empiricalMetrics[, 4:22]
-empMetrics2 = empiricalMetrics[, c(7, 8, 12:22)]
+
+# The metrics not strongly correlated with richness that were used for RF models
+empMetrics2 = empiricalMetrics[, statistics2]
 
 predictedValues2 = data.frame(tree = character(),
                               model = character(), 
@@ -425,8 +440,8 @@ for(j in 1:length(predictorsIndices)){
 # Need to standardize the predicted parameter values relative to the range of values examined within a given model.  
 #   scaled = (x - min) / (max - min)          
 
-#so first need to identify min and max values for each model-parameter combo:
-
+# So first need to identify min and max values for each model-parameter combo:
+# (this generates lots of warnings because of -Inf and Inf values but these can be ignored)
 modelParamRange = simuData %>%
   group_by(model) %>%
   summarize(env1Min = min(env1, na.rm = T),
@@ -500,22 +515,7 @@ scaledPredictions2 = predictedValues2 %>%
 scaledPredictions2$scaledValue = apply(scaledPredictions2[, c('value', 'minVal', 'maxVal')], 1, 
                              function(x) scaleFunction(value = x[1], min = x[2], max = x[3]))
 
-#Okabe-Ito color blind friendly palette
-modelColors = data.frame(model = unique(predictedValues2$model),
-                         color = c(rgb(0,0,0),
-                                   rgb(230/255, 159/255, 0),
-                                   rgb(86/255, 180/255, 233/255),
-                                   rgb(0, 158/255, 115/255),
-                                   rgb(240/255, 228/255, 66/255),
-                                   rgb(0, 114/255, 178/255),
-                                   rgb(213/255, 94/255, 0),
-                                   rgb(204/255, 121/255, 167/255)))
-
-newModelLabels = data.frame(model = c('ca', 'fh', 'gen', 'hs', 'la', 'pontarp', 've', 'xe'), 
-newLabel = c('ca', 'fh', 'gen', 'hs', 'am', 'pw', 've', 'xe'))
-
-scaledPredictions2 = left_join(scaledPredictions2, modelColors, by = 'model') %>% 
-  left_join(newModelLabels, by = 'model')
+scaledPredictions2 = left_join(scaledPredictions2, modelColors, by = 'model')
 
 
 
