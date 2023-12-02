@@ -528,7 +528,7 @@ pairs = c(1, 2, 5, 4, 6, 8)
 # Specify dispersal process
 pro = 'dis1' 
 
-par(mfrow = c(2, 3), mar = c(5, 3, 1, 0), oma = c(0, 3, 0, 0))
+par(mfrow = c(2, 3), mar = c(5, 3, 1, 1), oma = c(0, 3, 0, 0))
 
 panelLetters = letters[1:6]
 panelIndex = 0
@@ -540,15 +540,15 @@ for (p in pairs) {
   tmp = filter(scaledPredictions2, pair == p, predictor == pro)
     
   plot(c(0.5,2.5), range(tmp$scaledValue), type = 'n', xaxt = 'n', xlab = "", ylab = "", las = 1,
-       ylim = c(0, 1), yaxt = 'n')
+       ylim = c(-.3, 1), yaxt = 'n')
   
   mtext(empiricalMetrics$cladeName[empiricalMetrics$pair == p], 1, at = 1:2, line = 2.5, cex = 1.1, padj = 0.5)
-  offset = .19
+  offset = .22
   mtext(c("mean I'", "VRD", "mean I'", "VRD"), 1, at = c(1.1 - offset, 1.05 + offset, 2.05 - offset, 2. + offset), line = .5, cex = .8)
   
-  axis(2, at = seq(0.3, 1, by = 0.1), las = 1)
+  axis(2, at = seq(0.1, 1, by = 0.1), las = 1)
  
-  abline(h = 0.25)
+  abline(h = 0.1)
      
   for (m in unique(tmp$model)) {
       
@@ -562,23 +562,23 @@ for (p in pairs) {
   # Add barplots showing empirical values of mean.Iprime and VRD for the two sister clades
   par(new = T)
   
-  tmpBarData = empiricalMetrics[empiricalMetrics$pair == p, c('mean.Iprime', 'VRD')] %>%
+  tmpBarData = empiricalMetrics[empiricalMetrics$pair == p, c('i_stat', 'var_depth')] %>%
     rowwise() %>%
-    mutate(quantile.Iprime = sum(mean.Iprime > simuData$mean.Iprime, na.rm = T)/nrow(simuData),
-           quantile.VRD = sum(VRD > simuData$VRD, na.rm = T)/nrow(simuData)) %>%
-    dplyr::select(quantile.Iprime, quantile.VRD) %>%
+    mutate(quantile.i_stat = sum(i_stat > simuData$i_stat, na.rm = T)/nrow(simuData),
+           quantile.var_depth = sum(var_depth > simuData$var_depth, na.rm = T)/nrow(simuData)) %>%
+    dplyr::select(quantile.i_stat, quantile.var_depth) %>%
     t() %>%
     as.matrix()
   
   
-  barplot(tmpBarData, beside = T, yaxt = 'n', ylim = c(0, 3.5), border = NA, xlim = c(0.25, 6.5), xaxt = 'n', space = c(0.05, 1))
+  barplot(tmpBarData, beside = T, yaxt = 'n', ylim = c(0, 3), border = NA, xlim = c(0.5, 7), xaxt = 'n', space = c(0.1, 1.2))
   
   #barplot(as.matrix(tmpBarData[, 3:4]), 
   #        yaxt = 'n', ylim = c(0, 2.5), space = .95, border = NA, xlim = c(0.25, 4.5))  
   
   if (panelIndex %in% c(1, 4)) {
     mtext("Tree Metrics\n(quantiles)", 2, cex = .9, line = 1.8, at = 0.37)
-    mtext("Inferred Dispersal", 2, cex = 1.1, line = 3, at = 2.2)
+    mtext("Inferred Dispersal", 2, cex = 1.1, line = 3, at = 2)
   }
   
 }
