@@ -361,6 +361,19 @@ Cross-model predictability is measured by Kendall's rank correlation coefficient
 For the diagonal (within-model predictability), we use the CV predictability calculated in the previous step.
 
 ```{r}
+image.real <- function(mat, xCol = c("blue", "white", "white", "red"), 
+                       range = c(-1,1), x.labels = rownames(mat), 
+                       y.labels = colnames(mat), cex.axis = 1) { 
+  mat <- t(mat)[,nrow(mat):1]
+  fields::image.plot(mat, axes = FALSE, zlim = range, 
+                     col = colorRampPalette(xCol)(30))
+  axis(1, at = seq(0, 1, length = nrow(mat)), labels = x.labels, cex.axis = cex.axis)
+  axis(2, at = seq(0, 1, length = ncol(mat)), labels = y.labels, las = 2, cex.axis = cex.axis)
+  box() 
+}
+
+
+
 predictors[2]
 
 modelsTMP = models[-5]
@@ -384,7 +397,6 @@ for(k in 1:length(modelsTMP)){
   }
 }
 
-# could add row and column sums 
 
 rownames(CpredictabilityR2) = modelAbbrevs$new[modelAbbrevs$original %in% modelsTMP]
 colnames(CpredictabilityR2) = modelAbbrevs$new[modelAbbrevs$original %in% modelsTMP]
@@ -395,9 +407,9 @@ for(i in 1:length(modelsTMP)) CpredictabilityR2[i,i] = tmp[i]
 
 xCol = c("darkblue","blue", "lightblue", "gray94", "pink","red", "darkred")
 
-par(mar = c(8,8,8,8))
+par(mar = c(5,6,4,2), mgp = c(3, 1, 0))
 
-image.real(CpredictabilityR2, range = c(-1,1), xCol = xCol)
+image.real(CpredictabilityR2, range = c(-1,1), xCol = xCol, cex.axis = 1.5)
 title(main = paste("Cross-model predictability [r], mean =", round(mean(CpredictabilityR2), digits = 3)),xlab = "Model predicted to", ylab = "Model trained on\n", cex.lab = 1.5)
 
 for(i in 1:length(modelsTMP)){
@@ -408,14 +420,15 @@ for(i in 1:length(modelsTMP)){
   }
 }
 
+# could add row and column sums 
 
 #above
-axis(3, labels = round(colMeans(abs(CpredictabilityR2)), digits = 2), 
-     at = seq(0,1,length.out = 7), las = 2)
+#axis(3, labels = round(colMeans(abs(CpredictabilityR2)), digits = 2), 
+#     at = seq(0,1,length.out = 7), las = 2)
 
 #right
-axis(4, labels = round(rowMeans(abs(CpredictabilityR2)), digits = 2), 
-     at = seq(0,1,length.out = 7), las = 2)
+#axis(4, labels = round(rowMeans(abs(CpredictabilityR2)), digits = 2), 
+#     at = seq(0,1,length.out = 7), las = 2)
 
 ```
 
