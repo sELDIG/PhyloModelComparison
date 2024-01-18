@@ -51,7 +51,7 @@ for (m in modelList) {
 treeOutput = read.table('derived_tree_data/USE_treeStats.txt', sep = '\t', header = T)
 
 # Join process-parameter linkage dataframe to tree output
-simuData = left_join(processDF, treeOutput, by = c('model', 'simID'))
+allSimuData = left_join(processDF, treeOutput, by = c('model', 'simID'))
 
 write.csv(simuData, 
           'derived_tree_data/process_parameter_values_and_tree_metrics_sign_corrected.csv', row.names = F)
@@ -228,7 +228,6 @@ mtext("Metrics", 2, at = nStats/2, cex = 2, line = 8)
 mtext("Processes", 3, cex = 2, line = 3)
 
 ```
-
 
 # Model inversion
 
