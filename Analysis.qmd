@@ -342,12 +342,16 @@ par(mar = c(4, 6, 0, 0), mgp = c(4, 1, 0))
 # Squaring the correlation values of predictabilityR2CV to get R2's
 x = barplot(t(predictabilityR2CV^2), beside = T, las = 1, horiz = F, ylim = c(0,1.1), ylab = expression("Predicted-observed " ~ R^2), xaxt = "n", cex.lab = 1.8, cex.axis = 1.6, col = modelColors$color)
 
+# Add 'x' where process is missing from model
+missing.x = x[is.na(t(predictabilityR2CV))]
+text(x = missing.x, y = rep(0.02, length(missing.x)), '*', cex = 2)
+
 axis(1, at = c(5, 14, 23, 32, 41), labels = c("env.\nfiltering", "dispersal", "niche\nconserv.", "mutation/\nspeciation", "competition"), cex.axis = 1.6, line = 1.3, tick = F)
 
 axis(1, at = c(0, 9.5, 18.5, 27.5, 36.5, 45.5), tick = T, tck = -0.04, labels = F)
 
+# Legend
 text(6, 1.01, "Models", cex = 2)
-
 legend(0, 1, legend = modelColors$newLabel, fill = modelColors$color, ncol = 2, bty = 'n', cex = 1.5)
 
 ```
@@ -361,6 +365,7 @@ Cross-model predictability is measured by Kendall's rank correlation coefficient
 For the diagonal (within-model predictability), we use the CV predictability calculated in the previous step.
 
 ```{r}
+# Modified version of image.plot
 image.real <- function(mat, xCol = c("blue", "white", "white", "red"), 
                        range = c(-1,1), x.labels = rownames(mat), 
                        y.labels = colnames(mat), cex.axis = 1) { 
@@ -373,63 +378,81 @@ image.real <- function(mat, xCol = c("blue", "white", "white", "red"),
 }
 
 
+# Function for plotting cross-model predictability
+#   set the processIndex to the process which is being evaluated
+#   1 - env, 2 - dis, 3 - nic, 4 - mut, 5 - com
 
-predictors[2]
+#   create a vector of models that implement the process specified above by
+#   excluding those that do not implement it
+#   1 - ca, 2 - fh, 3 - ge, 4 - hs, 5 - am, 6 - pw, 7 - ve, 8 - xe
 
-modelsTMP = models[-5]
+crossPredictability = function(processIndex, modelsToExclude,
+                               xCol = c("darkblue","blue", "lightblue", 
+                                        "gray94", "pink","red", "darkred"),
+                               cexValues = 1, cexMain = 2, cexAxis = 1.5,
+                               cexLab = 1.8, mainText) {
+  
+  modelsTMP = models[-modelsToExclude]
 
-CpredictabilityR2 = array(dim = c(length(modelsTMP), length(modelsTMP)))
+  CpredictabilityR2 = array(dim = c(length(modelsTMP), length(modelsTMP)))
 
-for(k in 1:length(modelsTMP)){
-  train = simuData[simuData$model == modelsTMP[k],c(predictorsIndices[2], statisticsIndices2)]
-  train = train[complete.cases(train),]
-  if(nrow(train) > 0){
-    form = as.formula(paste(predictors[2], "~ ."))
-    x = ranger(form, data = train)
-  } 
-  for(j in 1:length(modelsTMP)){
-    test = simuData[simuData$model == modelsTMP[j],c(predictorsIndices[2], statisticsIndices2)]
-    test = test[complete.cases(test),]
-    if(nrow(test) > 0 & k != j){
-      y = predict(x, test)
-      CpredictabilityR2[k,j] = cor(y$predictions, test$dis1, method = "kendall")
+  for(k in 1:length(modelsTMP)){
+    train = simuData[simuData$model == modelsTMP[k],
+                     c(predictorsIndices[processIndex], statisticsIndices2)]
+    train = train[complete.cases(train),]
+    if(nrow(train) > 0){
+      form = as.formula(paste(predictors[processIndex], "~ ."))
+      x = ranger(form, data = train)
+    } 
+    for(j in 1:length(modelsTMP)){
+      test = simuData[simuData$model == modelsTMP[j],
+                      c(predictorsIndices[processIndex], statisticsIndices2)]
+      test = test[complete.cases(test),]
+      if(nrow(test) > 0 & k != j){
+        y = predict(x, test)
+        CpredictabilityR2[k,j] = cor(y$predictions, test[,1], method = "kendall")
+      }
+    }
+  }
+
+  rownames(CpredictabilityR2) = modelAbbrevs$new[modelAbbrevs$original %in% modelsTMP]
+  colnames(CpredictabilityR2) = modelAbbrevs$new[modelAbbrevs$original %in% modelsTMP]
+
+  # within-model predictability
+  tmp = predictabilityR2CV[processIndex,-modelsToExclude]
+  for(i in 1:length(modelsTMP)) CpredictabilityR2[i,i] = tmp[i]
+
+
+  #par(mar = c(5,6,4,2), mgp = c(3, 1, 0))
+
+  image.real(CpredictabilityR2, range = c(-1,1), xCol = xCol, cex.axis = cexAxis)
+  title(main = mainText, xlab = "Model predicted to", 
+        ylab = "Model trained on\n", cex.lab = cexLab, cex.main = cexMain)
+
+  # add values to cells
+  for(i in 1:length(modelsTMP)){
+    for(j in 1:length(modelsTMP)){
+      text((j-1)/(length(modelsTMP)-1),
+           1-(i-1)/(length(modelsTMP)-1), 
+           labels = format(round(CpredictabilityR2[i,j], digits = 2), nsmall = 2),
+           cex = cexValues)
     }
   }
 }
 
+# 2-panel figure showing cross-predictability for a) dispersal and b) speciation
 
-rownames(CpredictabilityR2) = modelAbbrevs$new[modelAbbrevs$original %in% modelsTMP]
-colnames(CpredictabilityR2) = modelAbbrevs$new[modelAbbrevs$original %in% modelsTMP]
+par(mfrow = c(1, 2), mar = c(5,8,4,4), mgp = c(3, 1, 0), oma = c(0, 0, 0, 1))
 
-tmp = predictabilityR2CV[2,-5]
+crossPredictability(processIndex = 4, modelsToExclude = 6, cexLab = 1.5,
+                    cexAxis = 1.3, cexValues = 1, cexMain = 1.5,
+                    mainText = "Mutation/speciation")
+mtext("a)", 2, at= 1.2, las = 1, cex = 2.5, line = 2)
 
-for(i in 1:length(modelsTMP)) CpredictabilityR2[i,i] = tmp[i]
-
-xCol = c("darkblue","blue", "lightblue", "gray94", "pink","red", "darkred")
-
-par(mar = c(5,6,4,2), mgp = c(3, 1, 0))
-
-image.real(CpredictabilityR2, range = c(-1,1), xCol = xCol, cex.axis = 1.5)
-title(main = paste("Cross-model predictability [r], mean =", round(mean(CpredictabilityR2), digits = 3)),xlab = "Model predicted to", ylab = "Model trained on\n", cex.lab = 1.5)
-
-for(i in 1:length(modelsTMP)){
-  for(j in 1:length(modelsTMP)){
-    text((j-1)/(length(modelsTMP)-1),
-         1-(i-1)/(length(modelsTMP)-1), 
-         labels = round(CpredictabilityR2[i,j], digits = 2))
-  }
-}
-
-# could add row and column sums 
-
-#above
-#axis(3, labels = round(colMeans(abs(CpredictabilityR2)), digits = 2), 
-#     at = seq(0,1,length.out = 7), las = 2)
-
-#right
-#axis(4, labels = round(rowMeans(abs(CpredictabilityR2)), digits = 2), 
-#     at = seq(0,1,length.out = 7), las = 2)
-
+crossPredictability(processIndex = 2, modelsToExclude = 5, cexLab = 1.5,
+                    cexAxis = 1.3, cexValues = 1, cexMain = 1.5,
+                    mainText = "Dispersal")
+mtext("b)", 2, at = 1.2, las = 1, cex = 2.5, line = 2)
 ```
 
 # Case studies
