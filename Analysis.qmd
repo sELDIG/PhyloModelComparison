@@ -387,33 +387,38 @@ image.real <- function(mat, xCol = c("blue", "white", "white", "red"),
 #   1 - ca, 2 - fh, 3 - ge, 4 - hs, 5 - am, 6 - pw, 7 - ve, 8 - xe
 
 crossPredictability = function(processIndex, modelsToExclude,
-                               xCol = c("darkblue","blue", "lightblue", 
-                                        "gray94", "pink","red", "darkred"),
-                               cexValues = 1, cexMain = 2, cexAxis = 1.5,
-                               cexLab = 1.8, mainText) {
+                              iterations = 100) {
   
   modelsTMP = models[-modelsToExclude]
 
-  CpredictabilityR2 = array(dim = c(length(modelsTMP), length(modelsTMP)))
+  CpredictabilityR2raw = array(dim = c(length(modelsTMP), length(modelsTMP), iterations))
 
-  for(k in 1:length(modelsTMP)){
-    train = simuData[simuData$model == modelsTMP[k],
-                     c(predictorsIndices[processIndex], statisticsIndices2)]
-    train = train[complete.cases(train),]
-    if(nrow(train) > 0){
-      form = as.formula(paste(predictors[processIndex], "~ ."))
-      x = ranger(form, data = train)
-    } 
-    for(j in 1:length(modelsTMP)){
-      test = simuData[simuData$model == modelsTMP[j],
-                      c(predictorsIndices[processIndex], statisticsIndices2)]
-      test = test[complete.cases(test),]
-      if(nrow(test) > 0 & k != j){
-        y = predict(x, test)
-        CpredictabilityR2[k,j] = cor(y$predictions, test[,1], method = "kendall")
-      }
-    }
-  }
+  for (i in 1:iterations) {
+
+    for(k in 1:length(modelsTMP)){
+      train = simuData[simuData$model == modelsTMP[k],
+                       c(predictorsIndices[processIndex],
+                         statisticsIndices2)]
+      train = train[complete.cases(train),]
+      if(nrow(train) > 0){
+        form = as.formula(paste(predictors[processIndex], "~ ."))
+        x = ranger(form, data = train)
+      } 
+      for(j in 1:length(modelsTMP)){
+        test = simuData[simuData$model == modelsTMP[j],
+                        c(predictorsIndices[processIndex], statisticsIndices2)]
+        test = test[complete.cases(test),]
+        if(nrow(test) > 0 & k != j){
+          y = predict(x, test)
+          CpredictabilityR2raw[k,j,i] = cor(y$predictions, test[,1], 
+                                         method = "kendall")
+        } # end if
+      } # end j testing 
+    } # end k training
+  } # end i iterations
+
+  # Average across all iterations to get a mean correlation
+  CpredictabilityR2 = rowMeans(CpredictabilityR2raw, dims = 2)
 
   rownames(CpredictabilityR2) = modelAbbrevs$new[modelAbbrevs$original %in% modelsTMP]
   colnames(CpredictabilityR2) = modelAbbrevs$new[modelAbbrevs$original %in% modelsTMP]
@@ -422,9 +427,19 @@ crossPredictability = function(processIndex, modelsToExclude,
   tmp = predictabilityR2CV[processIndex,-modelsToExclude]
   for(i in 1:length(modelsTMP)) CpredictabilityR2[i,i] = tmp[i]
 
+  return(CpredictabilityR2)
+}
 
-  #par(mar = c(5,6,4,2), mgp = c(3, 1, 0))
-
+  
+crossPredictabilityPlot = function(CpredictabilityR2,
+                                   cexValues = 1, cexMain = 2, 
+                                   cexAxis = 1.5, cexLab = 1.8,
+                                   mainText,
+                                   xCol = c("darkblue","blue",
+                                            "lightblue", "white",
+                                            "pink","red", "darkred"))
+{
+  
   image.real(CpredictabilityR2, range = c(-1,1), xCol = xCol, cex.axis = cexAxis)
   title(main = mainText, xlab = "Model predicted to", 
         ylab = "Model trained on\n", cex.lab = cexLab, cex.main = cexMain)
@@ -436,21 +451,31 @@ crossPredictability = function(processIndex, modelsToExclude,
            1-(i-1)/(length(modelsTMP)-1), 
            labels = format(round(CpredictabilityR2[i,j], digits = 2), nsmall = 2),
            cex = cexValues)
+  
     }
   }
 }
 
+
+
 # 2-panel figure showing cross-predictability for a) dispersal and b) speciation
+# This takes several minutes.
 
-par(mfrow = c(1, 2), mar = c(5,8,4,4), mgp = c(3, 1, 0), oma = c(0, 0, 0, 1))
+set.seed(1)
+speciationCP = crossPredictability(processIndex = 4, modelsToExclude = 6, iterations = 100)
 
-crossPredictability(processIndex = 4, modelsToExclude = 6, cexLab = 1.5,
-                    cexAxis = 1.3, cexValues = 1, cexMain = 1.5,
+dispersalCP = crossPredictability(processIndex = 2, modelsToExclude = 5, iterations = 100)
+
+
+par(mfrow = c(1, 2), mar = c(5,7,4,4), mgp = c(3, 1, 0), oma = c(0, 0, 0, 1))
+
+crossPredictabilityPlot(speciationCP, cexLab = 2,
+                    cexAxis = 1.7, cexValues = 1.3, cexMain = 2,
                     mainText = "Mutation/speciation")
 mtext("a)", 2, at= 1.2, las = 1, cex = 2.5, line = 2)
 
-crossPredictability(processIndex = 2, modelsToExclude = 5, cexLab = 1.5,
-                    cexAxis = 1.3, cexValues = 1, cexMain = 1.5,
+crossPredictabilityPlot(dispersalCP, cexLab = 2,
+                    cexAxis = 1.7, cexValues = 1.3, cexMain = 2,
                     mainText = "Dispersal")
 mtext("b)", 2, at = 1.2, las = 1, cex = 2.5, line = 2)
 ```
