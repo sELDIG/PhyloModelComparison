@@ -504,7 +504,8 @@ empiricalMetrics$cladeName = c('Xenarthra', 'Afrotheria',
 # The metrics not strongly correlated with richness that were used for RF models
 empMetrics2 = empiricalMetrics[, statistics2]
 
-predictedValues2 = data.frame(tree = character(),
+predictedValues2reps = data.frame(tree = character(),
+                              rep = numeric(),
                               model = character(), 
                               predictor = character(),
                               value = numeric())
@@ -514,27 +515,39 @@ predictability2R2 = array(dim = c(length(predictors), length(models)))
 
 # For each combination of process (predictorsIndices) and simulation model, infer the strength of process for each empirical tree based on the RF
 
-for(j in 1:length(predictorsIndices)){
-  for(k in 1:length(models)){
-    tmp = simuData[simuData$model == models[k],c(predictorsIndices[j], statisticsIndices2)]
-    tmp = tmp[complete.cases(tmp),]
-    if(nrow(tmp) > 0){
-      form = as.formula(paste(predictors[j], "~ ."))
-      x = ranger(form, data = tmp, importance = 'permutation',
-                 scale.permutation.importance = T)
-      predictions = predict(x, data = empMetrics2)
-      
-      tmpPredictions = data.frame(tree = word(empiricalMetrics$tree, 1, sep = fixed('.')),
-                                  model = rep(models[k], nrow(empMetrics2)),
-                                  predictor = rep(predictors[j], nrow(empMetrics2)),
-                                  value = predictions$predictions)
-      
-      predictedValues2 = rbind(predictedValues2, tmpPredictions)
-      
-    } 
-  }
-}
+# Run over multiple iterations to account for stochasticity in RF
+iterations = 100
 
+set.seed(1)
+for (i in 1:iterations) {
+  for(j in 1:length(predictorsIndices)){
+    for(k in 1:length(models)){
+      tmp = simuData[simuData$model == models[k],c(predictorsIndices[j],
+                                                   statisticsIndices2)]
+      tmp = tmp[complete.cases(tmp),]
+      if(nrow(tmp) > 0){
+        form = as.formula(paste(predictors[j], "~ ."))
+        x = ranger(form, data = tmp, importance = 'permutation',
+                   scale.permutation.importance = T)
+        predictions = predict(x, data = empMetrics2)
+      
+        tmpPredictions = data.frame(tree = word(empiricalMetrics$tree, 1, sep = fixed('.')),
+                                    rep = rep(i, nrow(empMetrics2)),
+                                    model = rep(models[k], nrow(empMetrics2)),
+                                    predictor = rep(predictors[j], nrow(empMetrics2)),
+                                    value = predictions$predictions)
+      
+        predictedValues2reps = rbind(predictedValues2reps, tmpPredictions)
+      
+      } # end if
+    } # end models
+  } # end predictors
+} # end iterations
+
+predictedValues2 = predictedValues2reps %>%
+  group_by(tree, model, predictor) %>%
+  summarize(value = mean(value, na.rm = T)) %>%
+  arrange(predictor, model, tree)
 
 
 # Need to standardize the predicted parameter values relative to the range of values examined within a given model.  
@@ -609,8 +622,9 @@ scaleFunction = function(value, min, max) {
 
 scaledPredictions2 = predictedValues2 %>%
   left_join(modelParamMinMax, by = c('model', 'predictor')) %>%
-  mutate(pair = str_extract(tree, "[1-9]"),
-         clade = rep(c(1, 2), 174))
+  mutate(pair = str_extract(tree, "[1-9]"))
+
+scaledPredictions2$clade = rep(c(1, 2), nrow(predictedvalues2)/2)
 
 scaledPredictions2$scaledValue = apply(scaledPredictions2[, c('value', 'minVal', 'maxVal')], 1, 
                              function(x) scaleFunction(value = x[1], min = x[2], max = x[3]))
@@ -679,6 +693,73 @@ for (p in pairs) {
   if (panelIndex %in% c(1, 4)) {
     mtext("Tree Metrics\n(quantiles)", 2, cex = .9, line = 1.8, at = 0.37)
     mtext("Inferred Dispersal", 2, cex = 1.1, line = 3, at = 2)
+  }
+  
+}
+
+###########################
+# Plot Inferred Speciation
+
+# Plot of model inversion for dispersal across 6 empirical sister clade pairs
+# --bottom panel illustrates relative magnitude of mean.Iprime which was identified as the tree metric most diagnostic of dispersal
+
+# Determines order of panels:
+pairs = c(1, 2, 5, 4, 6, 8)
+
+# Specify speciation process
+pro = 'mut1' 
+
+par(mfrow = c(2, 3), mar = c(5, 3, 1, 1), oma = c(0, 3, 0, 0))
+
+panelLetters = letters[1:6]
+panelIndex = 0
+
+for (p in pairs) {
+  
+  panelIndex = panelIndex + 1
+    
+  tmp = filter(scaledPredictions2, pair == p, predictor == pro)
+    
+  plot(c(0.5,2.5), range(tmp$scaledValue), type = 'n', xaxt = 'n', xlab = "", ylab = "", las = 1,
+       ylim = c(-.3, 1), yaxt = 'n')
+  
+  mtext(empiricalMetrics$cladeName[empiricalMetrics$pair == p], 1, at = 1:2, line = 2.5, cex = 1.1, padj = 0.5)
+  offset = .22
+  mtext(c("MBL", "LSP", "MBL", "LSP"), 1, at = c(1.1 - offset, 1.05 + offset, 2.05 - offset, 2. + offset), line = .5, cex = .8)
+  
+  axis(2, at = seq(0.1, 1, by = 0.1), las = 1)
+ 
+  abline(h = 0.1)
+     
+  for (m in unique(tmp$model)) {
+      
+    points(tmp$clade[tmp$model==m], tmp$scaledValue[tmp$model==m], type = 'b', col = tmp$color[tmp$model==m], lwd = 3)
+    text(2.1, tmp$scaledValue[tmp$model==m & tmp$clade == 2], tmp$newLabel[tmp$model==m], adj = 0)
+  }
+  
+  # panel label
+  text(.55, 0.97, paste0("(", panelLetters[panelIndex], ")"), cex = 2)
+
+  # Add barplots showing empirical values of mean_branch_length and laplac_spectrum_p for the two sister clades
+  par(new = T)
+  
+  tmpBarData = empiricalMetrics[empiricalMetrics$pair == p, c('mean_branch_length', 'laplac_spectrum_p')] %>%
+    rowwise() %>%
+    mutate(quantile.mbl = sum(mean_branch_length > simuData$mean_branch_length, na.rm = T)/nrow(simuData),
+           quantile.lsp = sum(laplac_spectrum_p > simuData$laplac_spectrum_p, na.rm = T)/nrow(simuData)) %>%
+    dplyr::select(quantile.mbl, quantile.lsp) %>%
+    t() %>%
+    as.matrix()
+  
+  
+  barplot(tmpBarData, beside = T, yaxt = 'n', ylim = c(0, 3), border = NA, xlim = c(0.5, 7), xaxt = 'n', space = c(0.1, 1.2))
+  
+  #barplot(as.matrix(tmpBarData[, 3:4]), 
+  #        yaxt = 'n', ylim = c(0, 2.5), space = .95, border = NA, xlim = c(0.25, 4.5))  
+  
+  if (panelIndex %in% c(1, 4)) {
+    mtext("Tree Metrics\n(quantiles)", 2, cex = .9, line = 1.8, at = 0.37)
+    mtext("Inferred Speciation", 2, cex = 1.1, line = 3, at = 2)
   }
   
 }
