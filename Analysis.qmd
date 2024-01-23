@@ -516,6 +516,7 @@ predictability2R2 = array(dim = c(length(predictors), length(models)))
 # For each combination of process (predictorsIndices) and simulation model, infer the strength of process for each empirical tree based on the RF
 
 # Run over multiple iterations to account for stochasticity in RF
+# This takes several minutes.
 iterations = 100
 
 set.seed(1)
