@@ -101,7 +101,7 @@ models = modelAbbrevs$original
 
 # Clustering / redundancy analysis
 
-TODO - add correlation analysis between metrics that was previously in the method section
+The following code illustrates the pairwise correlations among tree shape metrics, first for all metrics, and second for just the set of metrics that are not strongly (r \> 0.9) correlated with species richness.
 
 ```{r}
 # Correlation among indices
@@ -114,6 +114,17 @@ rownames(corrs) = metricNames
 
 par(mar = c(8, 8, 10, 8))
 heatmaply(corrs, colors = cool_warm)
+
+# For metrics not strongly correlated with richness
+corrs2 = cor(simuData[, statisticsIndices2], use = "pairwise.complete.obs", )
+
+metricNames2 = colnames(simuData)[statisticsIndices2]
+
+colnames(corrs2) = metricNames2
+rownames(corrs2) = metricNames2
+
+par(mar = c(8, 8, 10, 8))
+heatmaply(corrs2, colors = cool_warm)
 
 ```
 
@@ -129,11 +140,11 @@ statisticsIndices = statisticsIndices1
 statistics = colnames(simuData)[statisticsIndices]
 nStats = length(statisticsIndices)
 
-R2Mat = matrix(nrow = length(statistics), 
+numAgreements = matrix(nrow = length(statistics), 
                  ncol = length(predictors),
                  dimnames = list(statistics, predictors))
 
-numAgreements = numSigAgreements = meanCorr = medianCorr = R2Mat
+numSigAgreements = meanCorr = medianCorr = numAgreements
 
 R2MatFull = pMatFull = array(
     dim = c(length(statistics), length(predictors), length(models)),
@@ -219,7 +230,7 @@ image.real3d <- function(mat, mat2, xCol = c("darkblue","blue", "lightblue", "gr
 ```{r}
 # Correlation plot with ALL tree metrics for supplement
 
-par(mfrow = c(1,1), mar = c(5,15,5,3))
+par(mfrow = c(1,1), mar = c(5,10,5,3))
 
 # Tidier labels
 alt.x.labels = dimnames(R2MatFull)[[1]]
@@ -227,16 +238,22 @@ alt.x.labels = dimnames(R2MatFull)[[1]]
 # Modifying a few model abbreviations here (e.g. am and pw)
 dimnames(R2MatFull)[[3]] = c("ca", "fh", "ge", "hs", "am", "pw", "ve", "xe")
 
-pdf('figures/all_metric_correlations.pdf', height = 10.5, width = 13)
 image.real3d(R2MatFull, pMatFull, x.labels = alt.x.labels, y.labels = c("env. filtering", "dispersal", "niche conserv.", "mut./speciation", "competition"),
              cex.metrics = 0.8, cex.models = .9)
 
 mtext("Models", 1, line = 3.5, cex = 2)
 mtext("Metrics", 2, at = nrow(R2MatFull)/2, cex = 2, line = 8)
 mtext("Processes", 3, cex = 2, line = 3)
-dev.off()
 
-# Correlation plot highlighting metrics with strong correlation agreement
+# Correlation plot highlighting metrics with strong correlation agreement, and 
+# only including one metric per correlated cluster.
+# Eg, mntd is strongly correlated with mean_branch_length_ext and
+# mean_branch_length_ext, so only one is chosen to be included in the plot
+# based on which is likely to be more familiar or intuitive to readers.
+
+# These were identified from the overall correlation plot
+redundantMetrics = c('mean_branch_length', 'mean_branch_length_ext', 'nltt_base',
+                     'max_depth', 'diameter', 'area_per_pair', 'var_depth')
 
 agreement = numSigAgreements[(numAgreements[,1] >= 5 & numSigAgreements[,1] >= 4) |
                             (numAgreements[,2] >= 7 & numSigAgreements[,2] >= 6) | 
@@ -250,8 +267,16 @@ nic.metrics = rownames(agreement)[agreement[,3] >= 3]
 mut.metrics = rownames(agreement)[agreement[,4] >= 6]
 com.metrics = rownames(agreement)[agreement[,5] >= 5]
 
-highlightMat = R2MatFull[dimnames(R2MatFull)[[1]] %in% rownames(agreement),,]
-pMatHighlight = pMatFull[dimnames(R2MatFull)[[1]] %in% rownames(agreement),,]
+
+# Whether or not to include tree metrics for this plot
+metricsToPlot = dimnames(R2MatFull)[[1]] %in% rownames(agreement) &
+                           !dimnames(R2MatFull)[[1]] %in% redundantMetrics &
+                           !dimnames(R2MatFull)[[1]] %in% richnessCorrelatedMetrics
+# But add back number_of_lineages
+metricsToPlot[1] = TRUE
+
+highlightMat = R2MatFull[metricsToPlot,,]
+pMatHighlight = pMatFull[metricsToPlot,,]
 
 par(mar = c(5,10,5,3))
 
@@ -635,13 +660,20 @@ scaledPredictions2 = left_join(scaledPredictions2, modelColors, by = 'model')
 
 
 # Plot of model inversion for dispersal across 6 empirical sister clade pairs
-# --bottom panel illustrates relative magnitude of mean.Iprime which was identified as the tree metric most diagnostic of dispersal
+# --bottom panel illustrates relative magnitude of average_leaf_depth and j_one
+# which were identified as the tree metrics with consistent responses to dispersal
 
 # Determines order of panels:
 pairs = c(1, 2, 5, 4, 6, 8)
 
 # Specify dispersal process
 pro = 'dis1' 
+
+# Specify metrics
+met1 = 'average_leaf_depth'
+met2 = 'j_one'
+met1label = 'MRD'
+met2label = 'J_1'
 
 par(mfrow = c(2, 3), mar = c(5, 3, 1, 1), oma = c(0, 3, 0, 0))
 
@@ -659,7 +691,7 @@ for (p in pairs) {
   
   mtext(empiricalMetrics$cladeName[empiricalMetrics$pair == p], 1, at = 1:2, line = 2.5, cex = 1.1, padj = 0.5)
   offset = .22
-  mtext(c("mean I'", "VRD", "mean I'", "VRD"), 1, at = c(1.1 - offset, 1.05 + offset, 2.05 - offset, 2. + offset), line = .5, cex = .8)
+  mtext(c(met1label, met2label, met1label, met2label), 1, at = c(1.1 - offset, 1.05 + offset, 2.05 - offset, 2. + offset), line = .5, cex = .8)
   
   axis(2, at = seq(0.1, 1, by = 0.1), las = 1)
  
@@ -677,11 +709,11 @@ for (p in pairs) {
   # Add barplots showing empirical values of mean.Iprime and VRD for the two sister clades
   par(new = T)
   
-  tmpBarData = empiricalMetrics[empiricalMetrics$pair == p, c('i_stat', 'var_depth')] %>%
+  tmpBarData = empiricalMetrics[empiricalMetrics$pair == p, c(met1, met2)] %>%
     rowwise() %>%
-    mutate(quantile.i_stat = sum(i_stat > simuData$i_stat, na.rm = T)/nrow(simuData),
-           quantile.var_depth = sum(var_depth > simuData$var_depth, na.rm = T)/nrow(simuData)) %>%
-    dplyr::select(quantile.i_stat, quantile.var_depth) %>%
+    mutate(quantile.met1 = sum({{met1}} > simuData[, met1], na.rm = T)/nrow(simuData),
+           quantile.met2 = sum({{met2}} > simuData[, met2], na.rm = T)/nrow(simuData)) %>%
+    dplyr::select(quantile.met1, quantile.met2) %>%
     t() %>%
     as.matrix()
   
@@ -702,13 +734,20 @@ for (p in pairs) {
 # Plot Inferred Speciation
 
 # Plot of model inversion for dispersal across 6 empirical sister clade pairs
-# --bottom panel illustrates relative magnitude of mean.Iprime which was identified as the tree metric most diagnostic of dispersal
+# --bottom panel illustrates relative magnitude of mntd and laplac_spectrum_p
+# which were identified as the tree metrics with consistent responses to speciation
 
 # Determines order of panels:
 pairs = c(1, 2, 5, 4, 6, 8)
 
 # Specify speciation process
 pro = 'mut1' 
+
+# Specify metrics
+met1 = 'mntd'
+met2 = 'laplac_spectrum_p'
+met1label = 'MNTD'
+met2label = 'LSP'
 
 par(mfrow = c(2, 3), mar = c(5, 3, 1, 1), oma = c(0, 3, 0, 0))
 
@@ -744,11 +783,11 @@ for (p in pairs) {
   # Add barplots showing empirical values of mean_branch_length and laplac_spectrum_p for the two sister clades
   par(new = T)
   
-  tmpBarData = empiricalMetrics[empiricalMetrics$pair == p, c('mean_branch_length', 'laplac_spectrum_p')] %>%
+  tmpBarData = empiricalMetrics[empiricalMetrics$pair == p, c(met1, met2)] %>%
     rowwise() %>%
-    mutate(quantile.mbl = sum(mean_branch_length > simuData$mean_branch_length, na.rm = T)/nrow(simuData),
-           quantile.lsp = sum(laplac_spectrum_p > simuData$laplac_spectrum_p, na.rm = T)/nrow(simuData)) %>%
-    dplyr::select(quantile.mbl, quantile.lsp) %>%
+    mutate(quantile.met1 = sum({{met1}} > simuData[, met1], na.rm = T)/nrow(simuData),
+           quantile.met2 = sum({{met2}} > simuData[, met2], na.rm = T)/nrow(simuData)) %>%
+    dplyr::select(quantile.met1, quantile.met2) %>%
     t() %>%
     as.matrix()
   
