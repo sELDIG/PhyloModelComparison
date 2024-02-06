@@ -199,6 +199,7 @@ Plotting metric-process correlations across all models, metrics, and processes.
 image.real3d <- function(mat, mat2, xCol = c("darkblue","blue", "lightblue", "gray94", "pink","red", "darkred"), 
                        range = c(-1,1), x.labels = dimnames(mat)[[1]],      y.labels = dimnames(mat)[[2]], alpha = .01, cex.metrics = 0.5, 
                        cex.models = 0.7, cex.processes = 1,
+                       cex.asterisk = 1,
                        boxes = FALSE, #draw a highlight box around consistent responses
                        boxProcesses, #vector of processes to highlight (of same length as boxMetrics, and processes can be repeated to highlight diff metrics)
                        boxMetrics, #vector of metrics to highlight (of same length as boxProcesses, and metrics can be repeated to highlight diff processes)
@@ -240,7 +241,7 @@ image.real3d <- function(mat, mat2, xCol = c("darkblue","blue", "lightblue", "gr
     for(k in 1:dim(mat2)[2]){
        for(j in 1:dim(mat2)[3])
         if(!is.na(mat2[i,k,j]) & mat2[i,k,j] < alpha){
-          text(x = 10*(k-1) +j,  y = i, labels = "*" )
+          text(x = 10*(k-1) +j,  y = i, labels = "*", cex = cex.asterisk )
       }
     }
   } # end * loop
@@ -262,7 +263,6 @@ image.real3d <- function(mat, mat2, xCol = c("darkblue","blue", "lightblue", "gr
 ```{r}
 # Correlation plot with ALL tree metrics for supplement
 
-par(mfrow = c(1,1), mar = c(5,10,5,3))
 
 # Tidier labels
 alt.x.labels = dimnames(R2MatFull)[[1]]
@@ -270,12 +270,21 @@ alt.x.labels = dimnames(R2MatFull)[[1]]
 # Modifying a few model abbreviations here (e.g. am and pw)
 dimnames(R2MatFull)[[3]] = c("ca", "fh", "ge", "hs", "am", "pw", "ve", "xe")
 
-image.real3d(R2MatFull, pMatFull, x.labels = alt.x.labels, y.labels = c("env. filtering", "dispersal", "niche conserv.", "mut./speciation", "competition"),
-             cex.metrics = 0.8, cex.models = .9)
+pdf('figures/all_metric_correlations.pdf', height = 11, width = 13)
+par(mfrow = c(1,1), mar = c(4,11,3,3), oma = c(3, 2, 2, 0))
 
-mtext("Models", 1, line = 3.5, cex = 2)
-mtext("Metrics", 2, at = nrow(R2MatFull)/2, cex = 2, line = 8)
-mtext("Processes", 3, cex = 2, line = 3)
+image.real3d(R2MatFull, pMatFull, x.labels = alt.x.labels, y.labels = c("env. filtering", "dispersal", "niche conserv.", "mut./speciation", "competition"),
+             cex.metrics = .7, cex.models = 1.2, cex.processes = 1.4,
+             boxes = T, boxProcesses = c(rep('env', length(env.metrics)),
+                                         rep('dis', length(dis.metrics)),
+                                         rep('mut', length(mut.metrics))), 
+             boxMetrics = c(env.metrics, dis.metrics, mut.metrics), lwd = 3,
+             srt = 90, cex.asterisk = 1)
+
+mtext("Models", 1, outer = TRUE, cex = 2.5, at = .53)
+mtext("Metrics", 2, cex = 2.5, outer = TRUE, line = -3)
+mtext("Processes", 3, cex = 2.5, outer = TRUE, at = 0.53)
+dev.off()
 
 # Correlation plot highlighting metrics with strong correlation agreement, and 
 # only including one metric per correlated cluster.
@@ -312,7 +321,6 @@ metricsToPlot[dimnames(R2MatFull)[[1]] %in% commonMetrics] = TRUE
 highlightMat = R2MatFull[metricsToPlot,,]
 pMatHighlight = pMatFull[metricsToPlot,,]
 
-par(mfrow = c(1,1), mar = c(5,10,5,3))
 
 # Tidier labels
 alt.x.labels = dimnames(highlightMat)[[1]]
@@ -326,17 +334,20 @@ envMetrics = env.metrics[env.metrics %in% rownames(highlightMat)]
 disMetrics = dis.metrics[dis.metrics %in% rownames(highlightMat)]
 mutMetrics = mut.metrics[mut.metrics %in% rownames(highlightMat)]
 
+par(mfrow = c(1,1), mar = c(4,11,3,3), oma = c(3, 2, 2, 0))
+
 image.real3d(highlightMat, pMatHighlight, x.labels = alt.x.labels, 
              y.labels = c("env. filtering", "dispersal", "niche conserv.", "mut./speciation", "competition"),
-             cex.metrics = 1, cex.models = .9,
+             cex.metrics = 1.2, cex.models = 1.2, cex.processes = 1.4,
              boxes = T, boxProcesses = c(rep('env', length(envMetrics)),
                                          rep('dis', length(disMetrics)),
                                          rep('mut', length(mutMetrics))), 
-             boxMetrics = c(envMetrics, disMetrics, mutMetrics), lwd = 4)
+             boxMetrics = c(envMetrics, disMetrics, mutMetrics), lwd = 4,
+             srt = 90, cex.asterisk = 2)
 
-mtext("Models", 1, line = 3.5, cex = 2)
-mtext("Metrics", 2, at = nrow(highlightMat)/2, cex = 2, line = 8)
-mtext("Processes", 3, cex = 2, line = 3)
+mtext("Models", 1, outer = TRUE, cex = 2.5, at = .53)
+mtext("Metrics", 2, cex = 2.5, outer = TRUE)
+mtext("Processes", 3, cex = 2.5, outer = TRUE, at = 0.53)
 
 ```
 
