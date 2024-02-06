@@ -198,7 +198,18 @@ Plotting metric-process correlations across all models, metrics, and processes.
 ```{r}
 image.real3d <- function(mat, mat2, xCol = c("darkblue","blue", "lightblue", "gray94", "pink","red", "darkred"), 
                        range = c(-1,1), x.labels = dimnames(mat)[[1]],      y.labels = dimnames(mat)[[2]], alpha = .01, cex.metrics = 0.5, 
-                       cex.models = 0.7, cex.processes = 1) { 
+                       cex.models = 0.7, cex.processes = 1,
+                       boxes = FALSE, #draw a highlight box around consistent responses
+                       boxProcesses, #vector of processes to highlight (of same length as boxMetrics, and processes can be repeated to highlight diff metrics)
+                       boxMetrics, #vector of metrics to highlight (of same length as boxProcesses, and metrics can be repeated to highlight diff processes)
+                       lwd = 4)
+  { 
+  
+  processPosition = data.frame(process = c('env', 'dis', 'nic', 'mut', 'com'),
+                               xPos = c(0.6, 10.5, 20.5, 30.5, 40.5))
+  
+  metricPosition = data.frame(metrics = rownames(mat), 
+                              yPos = seq(0.5, nrow(mat)-0.5, by = 1))
   
   newMat = matrix(nrow = dim(mat)[1], ncol = 50)
   for(i in 1:dim(mat)[1]){
@@ -217,11 +228,12 @@ image.real3d <- function(mat, mat2, xCol = c("darkblue","blue", "lightblue", "gr
   abline(h = c(1:(dim(mat)[1] +1)) + 0.5)
   axis(2, at = 1:nrow(mat), labels = x.labels, las = 2, cex.axis = cex.metrics)
   axis(3, at = seq(5, 45, by = 10), labels = y.labels, cex.axis = cex.processes, las = 1)
-  axis(1, at = xpos, labels = rep(dimnames(mat)[[3]], 5), cex.axis = cex.models, las = 2)
-  
-  # text(x = xpos, y = 0, srt = 45, adj = 1, xpd = TRUE, labels = rep(dimnames(mat)[[3]], 5), cex = 0.65)
+  #axis(1, at = xpos, labels = rep(dimnames(mat)[[3]], 5), cex.axis = cex.models, las = 2)
   box() 
   
+  text(x = xpos, y = 0, srt = 45, adj = 1, xpd = TRUE, labels = rep(dimnames(mat)[[3]], 5), cex = cex.models)
+  
+  # Add *s where correlation's p is below alpha
   for(i in 1:dim(mat2)[1]){
     for(k in 1:dim(mat2)[2]){
        for(j in 1:dim(mat2)[3])
@@ -229,8 +241,20 @@ image.real3d <- function(mat, mat2, xCol = c("darkblue","blue", "lightblue", "gr
           text(x = 10*(k-1) +j,  y = i, labels = "*" )
       }
     }
-  }
-}
+  } # end * loop
+  
+  if(boxes) {
+    for (b in 1:length(boxProcesses)) {
+      rect(processPosition$xPos[processPosition$process == boxProcesses[b]],
+           metricPosition$yPos[metricPosition$metric == boxMetrics[b]],
+           processPosition$xPos[processPosition$process == boxProcesses[b]] + 8,
+           metricPosition$yPos[metricPosition$metric == boxMetrics[b]] + .95,
+           lwd = lwd)
+      
+    } # end box loop
+  } # end box if
+  
+} #end function
 ```
 
 ```{r}
@@ -294,9 +318,19 @@ alt.x.labels = dimnames(highlightMat)[[1]]
 # Modifying a few model abbreviations here (e.g. am and pw)
 dimnames(highlightMat)[[3]] = c("ca", "fh", "ge", "hs", "am", "pw", "ve", "xe")
 
+# Of the metrics that exhibit consistency across models, just select those
+# that will be highlighted in the figure
+envMetrics = env.metrics[env.metrics %in% rownames(highlightMat)]
+disMetrics = dis.metrics[dis.metrics %in% rownames(highlightMat)]
+mutMetrics = mut.metrics[mut.metrics %in% rownames(highlightMat)]
+
 image.real3d(highlightMat, pMatHighlight, x.labels = alt.x.labels, 
              y.labels = c("env. filtering", "dispersal", "niche conserv.", "mut./speciation", "competition"),
-             cex.metrics = .8, cex.models = .8)
+             cex.metrics = .8, cex.models = .8,
+             boxes = T, boxProcesses = c(rep('env', length(envMetrics)),
+                                         rep('dis', length(disMetrics)),
+                                         rep('mut', length(mutMetrics))), 
+             boxMetrics = c(envMetrics, disMetrics, mutMetrics), lwd = 4)
 
 mtext("Models", 1, line = 3.5, cex = 2)
 mtext("Metrics", 2, at = nrow(highlightMat)/2, cex = 2, line = 8)
