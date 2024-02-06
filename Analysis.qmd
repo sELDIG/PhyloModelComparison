@@ -530,10 +530,10 @@ crossPredictabilityPlot = function(CpredictabilityR2,
   mtext("(given that reality works like this model)", 1, line = 4.2, cex = cexLabSub)
 
   # add values to cells
-  for(i in 1:length(modelsTMP)){
-    for(j in 1:length(modelsTMP)){
-      text((j-1)/(length(modelsTMP)-1),
-           1-(i-1)/(length(modelsTMP)-1), 
+  for(i in 1:nrow(CpredictabilityR2)){
+    for(j in 1:nrow(CpredictabilityR2)){
+      text((j-1)/(nrow(CpredictabilityR2) - 1),
+           1-(i-1)/(nrow(CpredictabilityR2) - 1), 
            labels = format(round(CpredictabilityR2[i,j], digits = 2), nsmall = 2),
            cex = cexValues)
   
@@ -589,6 +589,11 @@ crossPredictabilityPlot(comCP, cexLab = 2,
                     mainText = "Competition")
 mtext("b)", 2, at = 1.2, las = 1, cex = 2.5, line = 2)
 
+
+crossPredictabilityPlot(nicCP, cexLab = 2,
+                    cexAxis = 1.7, cexValues = 1.3, cexMain = 2,
+                    mainText = "Niche conservatism")
+mtext("c)", 2, at= 1.2, las = 1, cex = 2.5, line = 2)
 
 ```
 
