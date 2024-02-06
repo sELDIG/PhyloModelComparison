@@ -420,11 +420,11 @@ modelColors = data.frame(model = models,
 par(mar = c(4, 6, 0, 0), mgp = c(4, 1, 0))
 
 # Squaring the correlation values of predictabilityR2CV to get R2's
-x = barplot(t((predictabilityR2CV)), beside = T, las = 1, horiz = F, ylim = c(-.1,1.1), ylab = expression("Predicted-observed " ~ R^2), xaxt = "n", cex.lab = 1.8, cex.axis = 1.6, col = modelColors$color)
+x = barplot(t((predictabilityR2CV))^2, beside = T, las = 1, horiz = F, ylim = c(0 ,1.1), ylab = expression("Predicted-observed " ~ R^2), xaxt = "n", cex.lab = 1.8, cex.axis = 1.6, col = modelColors$color)
 
 # Add 'x' where process is missing from model
 missing.x = x[is.na(t(predictabilityR2CV))]
-text(x = missing.x, y = rep(0.02, length(missing.x)), '*', cex = 2)
+text(x = missing.x, y = rep(0.02, length(missing.x)), '-', cex = 2)
 
 axis(1, at = c(5, 14, 23, 32, 41), labels = c("env.\nfiltering", "dispersal", "niche\nconserv.", "mutation/\nspeciation", "competition"), cex.axis = 1.6, line = 1.3, tick = F)
 
