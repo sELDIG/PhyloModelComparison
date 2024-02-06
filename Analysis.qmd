@@ -202,7 +202,8 @@ image.real3d <- function(mat, mat2, xCol = c("darkblue","blue", "lightblue", "gr
                        boxes = FALSE, #draw a highlight box around consistent responses
                        boxProcesses, #vector of processes to highlight (of same length as boxMetrics, and processes can be repeated to highlight diff metrics)
                        boxMetrics, #vector of metrics to highlight (of same length as boxProcesses, and metrics can be repeated to highlight diff processes)
-                       lwd = 4)
+                       lwd = 4,
+                       srt = 60)
   { 
   
   processPosition = data.frame(process = c('env', 'dis', 'nic', 'mut', 'com'),
@@ -228,10 +229,11 @@ image.real3d <- function(mat, mat2, xCol = c("darkblue","blue", "lightblue", "gr
   abline(h = c(1:(dim(mat)[1] +1)) + 0.5)
   axis(2, at = 1:nrow(mat), labels = x.labels, las = 2, cex.axis = cex.metrics)
   axis(3, at = seq(5, 45, by = 10), labels = y.labels, cex.axis = cex.processes, las = 1)
+  axis(1, at = xpos, labels = F)
   #axis(1, at = xpos, labels = rep(dimnames(mat)[[3]], 5), cex.axis = cex.models, las = 2)
   box() 
   
-  text(x = xpos, y = 0, srt = 45, adj = 1, xpd = TRUE, labels = rep(dimnames(mat)[[3]], 5), cex = cex.models)
+  text(x = xpos, y = 0, srt = srt, adj = 1, xpd = TRUE, labels = rep(dimnames(mat)[[3]], 5), cex = cex.models)
   
   # Add *s where correlation's p is below alpha
   for(i in 1:dim(mat2)[1]){
@@ -326,7 +328,7 @@ mutMetrics = mut.metrics[mut.metrics %in% rownames(highlightMat)]
 
 image.real3d(highlightMat, pMatHighlight, x.labels = alt.x.labels, 
              y.labels = c("env. filtering", "dispersal", "niche conserv.", "mut./speciation", "competition"),
-             cex.metrics = .8, cex.models = .8,
+             cex.metrics = 1, cex.models = .9,
              boxes = T, boxProcesses = c(rep('env', length(envMetrics)),
                                          rep('dis', length(disMetrics)),
                                          rep('mut', length(mutMetrics))), 
