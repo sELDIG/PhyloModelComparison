@@ -523,11 +523,11 @@ crossPredictabilityPlot = function(CpredictabilityR2,
 {
   
   image.real(CpredictabilityR2, range = c(-1,1), xCol = xCol, cex.axis = cexAxis)
-  title(main = mainText, xlab = "Model predicted to", 
+  title(main = mainText, xlab = "predicted to trees from", 
         cex.lab = cexLab, cex.main = cexMain)
   mtext("Model trained on\n", 2, line = 2.7, cex = cexLab)
   mtext("(modelers' assumption of reality)", 2, line = 3.4, cex = cexLabSub)
-  mtext("(given that reality works like this model)", 1, line = 4.2, cex = cexLabSub)
+  mtext("(what if reality works like this model?)", 1, line = 4.5, cex = cexLabSub)
 
   # add values to cells
   for(i in 1:nrow(CpredictabilityR2)){
@@ -555,13 +555,13 @@ par(mfrow = c(1, 2), mar = c(6,7,4,4), mgp = c(3, 1, 0), oma = c(0, 0, 0, 1))
 
 crossPredictabilityPlot(speciationCP, cexLab = 2,
                     cexAxis = 1.8, cexValues = 1.3, cexMain = 2.5,
-                    cexLabSub = 1.3,
+                    cexLabSub = 1.5,
                     mainText = "Mutation/speciation")
 mtext("a)", 2, at= 1.2, las = 1, cex = 2.5, line = 2)
 
 crossPredictabilityPlot(dispersalCP, cexLab = 2,
                     cexAxis = 1.8, cexValues = 1.3, cexMain = 2.5,
-                    cexLabSub = 1.3, mainText = "Dispersal")
+                    cexLabSub = 1.5, mainText = "Dispersal")
 mtext("b)", 2, at = 1.2, las = 1, cex = 2.5, line = 2)
 
 
@@ -580,18 +580,18 @@ nicCP = crossPredictability(process = 'nic', iterations = 100)
 par(mfrow = c(1, 2), mar = c(6,7,4,4), mgp = c(3, 1, 0), oma = c(0, 0, 0, 1))
 
 crossPredictabilityPlot(envCP, cexLab = 2,
-                    cexAxis = 1.7, cexValues = 1.3, cexMain = 2,
+                    cexAxis = 1.8, cexValues = 1.3, cexMain = 2.5, cexLabSub = 1.5,
                     mainText = "Envir. Filtering")
 mtext("a)", 2, at= 1.2, las = 1, cex = 2.5, line = 2)
 
 crossPredictabilityPlot(comCP, cexLab = 2,
-                    cexAxis = 1.7, cexValues = 1.3, cexMain = 2,
+                    cexAxis = 1.8, cexValues = 1.3, cexMain = 2.5, cexLabSub = 1.5,
                     mainText = "Competition")
 mtext("b)", 2, at = 1.2, las = 1, cex = 2.5, line = 2)
 
 
 crossPredictabilityPlot(nicCP, cexLab = 2,
-                    cexAxis = 1.7, cexValues = 1.3, cexMain = 2,
+                    cexAxis = 1.8, cexValues = 1.3, cexMain = 2.5, cexLabSub = 1.5,
                     mainText = "Niche conservatism")
 mtext("c)", 2, at= 1.2, las = 1, cex = 2.5, line = 2)
 
