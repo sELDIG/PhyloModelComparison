@@ -273,7 +273,7 @@ dimnames(R2MatFull)[[3]] = c("ca", "fh", "ge", "hs", "am", "pw", "ve", "xe")
 pdf('figures/all_metric_correlations.pdf', height = 11, width = 13)
 par(mfrow = c(1,1), mar = c(4,11,3,3), oma = c(3, 2, 2, 0))
 
-image.real3d(R2MatFull, pMatFull, x.labels = alt.x.labels, y.labels = c("env. filtering", "dispersal", "niche conserv.", "mut./speciation", "competition"),
+image.real3d(R2MatFull, pMatFull, x.labels = alt.x.labels, y.labels = c("env. filtering", "dispersal", "niche conserv.", "speciation", "competition"),
              cex.metrics = .7, cex.models = 1.2, cex.processes = 1.4,
              boxes = T, boxProcesses = c(rep('env', length(env.metrics)),
                                          rep('dis', length(dis.metrics)),
@@ -337,15 +337,15 @@ mutMetrics = mut.metrics[mut.metrics %in% rownames(highlightMat)]
 par(mfrow = c(1,1), mar = c(4,11,3,3), oma = c(3, 2, 2, 0))
 
 image.real3d(highlightMat, pMatHighlight, x.labels = alt.x.labels, 
-             y.labels = c("env. filtering", "dispersal", "niche conserv.", "mut./speciation", "competition"),
-             cex.metrics = 1.2, cex.models = 1.2, cex.processes = 1.4,
+             y.labels = c("env. filtering", "dispersal", "niche conserv.", "speciation", "competition"),
+             cex.metrics = 1.4, cex.models = 1.4, cex.processes = 1.6,
              boxes = T, boxProcesses = c(rep('env', length(envMetrics)),
                                          rep('dis', length(disMetrics)),
                                          rep('mut', length(mutMetrics))), 
              boxMetrics = c(envMetrics, disMetrics, mutMetrics), lwd = 4,
              srt = 90, cex.asterisk = 2)
 
-mtext("Models", 1, outer = TRUE, cex = 2.5, at = .53)
+mtext("Models", 1, outer = TRUE, cex = 2.5, at = .53, line = 1.5)
 mtext("Metrics", 2, cex = 2.5, outer = TRUE)
 mtext("Processes", 3, cex = 2.5, outer = TRUE, at = 0.53)
 
@@ -556,7 +556,7 @@ par(mfrow = c(1, 2), mar = c(6,7,4,4), mgp = c(3, 1, 0), oma = c(0, 0, 0, 1))
 crossPredictabilityPlot(speciationCP, cexLab = 2,
                     cexAxis = 1.8, cexValues = 1.3, cexMain = 2.5,
                     cexLabSub = 1.5,
-                    mainText = "Mutation/speciation")
+                    mainText = "Speciation")
 mtext("a)", 2, at= 1.2, las = 1, cex = 2.5, line = 2)
 
 crossPredictabilityPlot(dispersalCP, cexLab = 2,
