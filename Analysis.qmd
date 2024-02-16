@@ -72,7 +72,15 @@ library(heatmaply)
 # Read in simulated tree data
 allSimuData <- read.csv("derived_tree_data/process_parameter_values_and_tree_metrics_sign_corrected.csv", stringsAsFactors = T)
 
-simuData = dplyr::select(allSimuData, -tree_height, -crown_age)
+# For some reason there are 300 pontarp simulations with identical parameter sets:
+pweird = filter(allSimuData, model == "pontarp", env1 > .9, env1 < .95, 
+                dis1 > .09, dis1 < .095, com1 > .26, com1 < .27, 
+                nic1 > -.039, nic1 < -.021)
+
+# Filter those out, and remove tree_height and crown_age
+simuData = allSimuData %>%
+  filter(!(model == "pontarp" & simID %in% pweird$simID)) %>%
+  dplyr::select(-tree_height, -crown_age)
 
 # Visualize correlation matrix of tree metrics
 metricCors = cor(simuData[, 24:75], use = "pairwise.complete.obs")
@@ -261,8 +269,33 @@ image.real3d <- function(mat, mat2, xCol = c("darkblue","blue", "lightblue", "gr
 ```
 
 ```{r}
-# Correlation plot with ALL tree metrics for supplement
+# Correlation plot highlighting metrics with strong correlation agreement
 
+# Two versions, one with all metrics, and one
+# only including one metric per correlated cluster.
+# Eg, mntd is strongly correlated with mean_branch_length_ext and
+# mean_branch_length_ext, so only one is chosen to be included in the plot
+# based on which is likely to be more familiar or intuitive to readers.
+
+# These were identified from the overall correlation plot
+redundantMetrics = c('mean_branch_length', 'mean_branch_length_ext', 'nltt_base',
+                     'max_depth', 'diameter', 'area_per_pair', 'var_depth')
+
+agreement = numSigAgreements[(numAgreements[,1] >= 5 & numSigAgreements[,1] >= 4) |
+                            (numAgreements[,2] >= 7 & numSigAgreements[,2] >= 6) | 
+                            (numAgreements[,3] >= 4 & numSigAgreements[,3] >= 3) | 
+                            (numAgreements[,4] >=7 & numSigAgreements[,4] >=6) | 
+                            (numAgreements[,5] >= 6 & numSigAgreements[,5] >= 5),]
+
+env.metrics = rownames(agreement)[agreement[,1] >= 4]
+dis.metrics = rownames(agreement)[agreement[,2] >= 6]
+nic.metrics = rownames(agreement)[agreement[,3] >= 3]
+mut.metrics = rownames(agreement)[agreement[,4] >= 6]
+com.metrics = rownames(agreement)[agreement[,5] >= 5]
+
+
+
+# Correlation plot with ALL tree metrics for supplement
 
 # Tidier labels
 alt.x.labels = dimnames(R2MatFull)[[1]]
@@ -286,27 +319,6 @@ mtext("Metrics", 2, cex = 2.5, outer = TRUE, line = -3)
 mtext("Processes", 3, cex = 2.5, outer = TRUE, at = 0.53)
 dev.off()
 
-# Correlation plot highlighting metrics with strong correlation agreement, and 
-# only including one metric per correlated cluster.
-# Eg, mntd is strongly correlated with mean_branch_length_ext and
-# mean_branch_length_ext, so only one is chosen to be included in the plot
-# based on which is likely to be more familiar or intuitive to readers.
-
-# These were identified from the overall correlation plot
-redundantMetrics = c('mean_branch_length', 'mean_branch_length_ext', 'nltt_base',
-                     'max_depth', 'diameter', 'area_per_pair', 'var_depth')
-
-agreement = numSigAgreements[(numAgreements[,1] >= 5 & numSigAgreements[,1] >= 4) |
-                            (numAgreements[,2] >= 7 & numSigAgreements[,2] >= 6) | 
-                            (numAgreements[,3] >= 4 & numSigAgreements[,3] >= 3) | 
-                            (numAgreements[,4] >=7 & numSigAgreements[,4] >=6) | 
-                            (numAgreements[,5] >= 6 & numSigAgreements[,5] >= 5),]
-
-env.metrics = rownames(agreement)[agreement[,1] >= 4]
-dis.metrics = rownames(agreement)[agreement[,2] >= 6]
-nic.metrics = rownames(agreement)[agreement[,3] >= 3]
-mut.metrics = rownames(agreement)[agreement[,4] >= 6]
-com.metrics = rownames(agreement)[agreement[,5] >= 5]
 
 
 # Whether or not to include tree metrics for this plot
