@@ -758,13 +758,29 @@ scaleFunction = function(value, min, max) {
 empiricalModelInferencePlot = function(process, # env1, dis1, mut1, nic1, com1
                                        metric1, metric2, 
                                        met1label, met2label, 
-                                       pairOrder = c(1, 2, 5, 4, 6, 8)) {
+                                       pairOrder = c(1, 2, 5, 4, 6, 8),
+                                       cex.axis = 1,
+                                       cex.clade = 1.1,
+                                       cex.metrics = .8,
+                                       cex.models = 1,
+                                       metric.offset = .22,
+                                       cex.quantiles = .9,
+                                       cex.panel = 2,
+                                       cex.legend = 1.5,
+                                       cex.legendpts = 2,
+                                       legend = FALSE,
+                                       model.abbrev = TRUE,
+                                       bar.space = .1) {
   
   par(mfrow = c(2, 3), mar = c(5, 3, 1, 1), oma = c(0, 3, 0, 0))
 
   panelLetters = letters[1:6]
   panelIndex = 0
 
+  processes = c('env1', 'dis1', 'mut1', 'nic1', 'com1')
+  processLabels = c('Env. Filtering', 'Dispersal', 'Speciation', 'Niche conserv.',
+                    'Competition')
+  
   for (p in pairOrder) {
   
     panelIndex = panelIndex + 1
@@ -775,11 +791,11 @@ empiricalModelInferencePlot = function(process, # env1, dis1, mut1, nic1, com1
          ylab = "", las = 1, ylim = c(-.3, 1), yaxt = 'n')
   
     mtext(empiricalMetrics$cladeName[empiricalMetrics$pair == p], 1, at = 1:2, 
-          line = 2.5, cex = 1.1, padj = 0.5)
-    offset = .22
-    mtext(c(met1label, met2label, met1label, met2label), 1, at = c(1.1 - offset, 1.05 + offset, 2.05 - offset, 2. + offset), line = .5, cex = .8)
+          line = 2.5, cex = cex.clade, padj = 0.5)
+    offset = metric.offset
+    mtext(c(met1label, met2label, met1label, met2label), 1, at = c(1.1 - offset, 1.05 + offset, 2.05 - offset, 2. + offset), line = .5, cex = cex.metrics)
   
-    axis(2, at = seq(0.1, 1, by = 0.1), las = 1)
+    axis(2, at = seq(0.1, 1, by = 0.1), las = 1, cex.axis = cex.axis)
  
     abline(h = 0.1)
      
@@ -787,12 +803,15 @@ empiricalModelInferencePlot = function(process, # env1, dis1, mut1, nic1, com1
       
       points(tmp$clade[tmp$model==m], tmp$scaledValue[tmp$model==m], type = 'b',
              col = tmp$color[tmp$model==m], lwd = 3)
-      text(2.1, tmp$scaledValue[tmp$model==m & tmp$clade == 2],
-           tmp$newLabel[tmp$model==m], adj = 0)
+      
+      if (model.abbrev) {
+        text(2.1, tmp$scaledValue[tmp$model==m & tmp$clade == 2],
+             tmp$newLabel[tmp$model==m], adj = 0, cex = cex.models)
+      }
     } #end models
   
     # panel label
-    text(.55, 0.97, paste0("(", panelLetters[panelIndex], ")"), cex = 2)
+    text(.55, 0.97, paste0("(", panelLetters[panelIndex], ")"), cex = cex.panel)
 
     # Add barplots showing empirical values of mean.Iprime and VRD for the two sister clades
     par(new = T)
@@ -809,11 +828,17 @@ empiricalModelInferencePlot = function(process, # env1, dis1, mut1, nic1, com1
       as.matrix()
 
     barplot(tmpBarData, beside = T, yaxt = 'n', ylim = c(0, 3), border = NA, 
-            xlim = c(0.5, 7), xaxt = 'n', space = c(0.1, 1.2))
+            xlim = c(0.5, 7), xaxt = 'n', space = c(bar.space, 1.4-bar.space))
   
     if (panelIndex %in% c(1, 4)) {
-      mtext("Tree Metrics\n(quantiles)", 2, cex = .9, line = 1.8, at = 0.37)
-      mtext("Inferred Dispersal", 2, cex = 1.1, line = 3, at = 2)
+      mtext("Tree Metrics\n(quantiles)", 2, cex = cex.quantiles, line = 1.8, at = 0.37)
+      mtext(paste("Inferred", processLabels[processes == process]), 2, cex = 1.1, line = 3, at = 2)
+    }
+    
+    if (legend & panelIndex == 1) {
+      legend("topright", legend = tmp$newLabel[tmp$clade == 1], 
+             col = tmp$color[tmp$clade == 1], pch = 15, #bty = 'n', 
+             cex = cex.legend, pt.cex = cex.legendpts)
     }
   } # end pairOrder
 
