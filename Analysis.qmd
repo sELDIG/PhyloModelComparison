@@ -630,6 +630,7 @@ empiricalMetrics$cladeName = c('Xenarthra', 'Afrotheria',
                                'Rodentia', 'Lagomorpha',
                                'Coraciiformes', 'Passeriformes',
                                'Pelecaniformes', 'Ciconiiformes')
+empiricalMetrics$tree2 = word(empiricalMetrics$tree, sep = '.tre')
 
 # The metrics not strongly correlated with richness that were used for RF models
 empMetrics2 = empiricalMetrics[, statistics2]
@@ -787,13 +788,13 @@ empiricalModelInferencePlot = function(process, # env1, dis1, mut1, nic1, com1
   
     panelIndex = panelIndex + 1
     
-    tmp = filter(scaledPredictions2, pair == p, predictor == process)
+    tmp = filter(scaledPredictions2, pair == p, predictor == process) %>% 
+      left_join(empiricalMetrics[, c('tree2', 'cladeName')], by = c('tree' = 'tree2'))
     
     plot(c(0.5,2.5), range(tmp$scaledValue), type = 'n', xaxt = 'n', xlab = "",
          ylab = "", las = 1, ylim = c(-.3, 1), yaxt = 'n')
   
-    mtext(empiricalMetrics$cladeName[empiricalMetrics$pair == p], 1, at = 1:2, 
-          line = 2.5, cex = cex.clade, padj = 0.5)
+    mtext(tmp$cladeName[1:2], 1, at = 1:2, line = 2.5, cex = cex.clade, padj = 0.5)
     offset = metric.offset
     mtext(c(met1label, met2label, met1label, met2label), 1, at = c(1.1 - offset, 1.05 + offset, 2.05 - offset, 2. + offset), line = .5, cex = cex.metrics)
   
