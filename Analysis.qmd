@@ -759,10 +759,12 @@ empiricalModelInferencePlot = function(process, # env1, dis1, mut1, nic1, com1
                                        metric1, metric2, 
                                        met1label, met2label, 
                                        pairOrder = c(1, 2, 5, 4, 6, 8),
+                                       lwd = 3,
                                        cex.axis = 1,
                                        cex.clade = 1.1,
                                        cex.metrics = .8,
                                        cex.models = 1,
+                                       cex.process = 1.1,
                                        metric.offset = .22,
                                        cex.quantiles = .9,
                                        cex.panel = 2,
@@ -802,7 +804,7 @@ empiricalModelInferencePlot = function(process, # env1, dis1, mut1, nic1, com1
     for (m in unique(tmp$model)) {
       
       points(tmp$clade[tmp$model==m], tmp$scaledValue[tmp$model==m], type = 'b',
-             col = tmp$color[tmp$model==m], lwd = 3)
+             col = tmp$color[tmp$model==m], lwd = lwd)
       
       if (model.abbrev) {
         text(2.1, tmp$scaledValue[tmp$model==m & tmp$clade == 2],
@@ -832,14 +834,14 @@ empiricalModelInferencePlot = function(process, # env1, dis1, mut1, nic1, com1
   
     if (panelIndex %in% c(1, 4)) {
       mtext("Tree Metrics\n(quantiles)", 2, cex = cex.quantiles, line = 1.8, at = 0.37)
-      mtext(paste("Inferred", processLabels[processes == process]), 2, cex = 1.1, line = 3, at = 2)
+      mtext(paste("Inferred", processLabels[processes == process]), 2, cex = cex.process, line = 3, at = 2)
     }
     
-    if (legend & panelIndex == 1) {
+    #if (legend & panelIndex %in% c(1,6)) {
       legend("topright", legend = tmp$newLabel[tmp$clade == 1], 
              col = tmp$color[tmp$clade == 1], pch = 15, #bty = 'n', 
              cex = cex.legend, pt.cex = cex.legendpts)
-    }
+    #}
   } # end pairOrder
 
 } # end function
@@ -870,14 +872,27 @@ write.csv(scaledPredictions2, 'derived_tree_data/scaled_predictions_empirical_tr
 # which were identified as the tree metrics with consistent responses to speciation
 
 empiricalModelInferencePlot('mut1', metric1='mntd', metric2='laplac_spectrum_p',
-                            met1label = 'MNTD', met2label = 'LSP')
+                             met1label = 'MNTD', met2label = 'LSP', 
+                            model.abbrev = F, legend = TRUE, cex.legend = 1.7, 
+                            cex.legendpts = 2.5, cex.metrics = 1.1, 
+                            metric.offset = .24, cex.clade = 1.3, 
+                            cex.quantiles = 1.2, cex.panel = 2.5, 
+                            cex.axis = 1.3, bar.space = .35, 
+                            cex.process = 1.4, lwd = 4)
+
 
 # Plot of model inversion for dispersal across 6 empirical sister clade pairs
 # --bottom panel illustrates relative magnitude of average_leaf_depth and j_one
 # which were identified as the tree metrics with consistent responses to dispersal
 
 empiricalModelInferencePlot('dis1', metric1='average_leaf_depth', metric2='j_one',
-                            met1label = 'ALD', met2label = 'J_1')
+                            met1label = 'ALD', met2label = 'J_1', 
+                            model.abbrev = F, legend = TRUE, cex.legend = 1.7, 
+                            cex.legendpts = 2.5, cex.metrics = 1.1, 
+                            metric.offset = .24, cex.clade = 1.3, 
+                            cex.quantiles = 1.2, cex.panel = 2.5, 
+                            cex.axis = 1.3, bar.space = .35, 
+                            cex.process = 1.4, lwd = 4)
 
 
 ```
