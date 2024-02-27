@@ -911,11 +911,11 @@ simuData$model3 = gsub("gen", "ge", simuData$model3)
 pdf('figures/metric_boxplots_across_models.pdf', height = 12, width = 10)
 par(mfrow = c(7, 5), mar = c(2.5, 2, 2, 1), mgp = c(2.5, .6, 0))
 
-bp1 = boxplot(log10(simuData$number_of_lineages) ~ simuData$model3, main = 'log # of lineages', col = rainbow(8), xaxt = 'n', tck = -0.01, xlab = '')
+bp1 = boxplot(log10(simuData$number_of_lineages) ~ simuData$model3, main = 'log # of lineages', col = modelColors$color[order(modelColors$newLabel)], xaxt = 'n', tck = -0.01, xlab = '', ylab = '')
 axis(1, at = 1:8, labels = bp1$names, las = 2, cex.axis = 1.4, tck = -0.01)
 
 for (i in statisticsIndices2) { 
-  bp = boxplot(simuData[,i] ~ simuData$model3, main = names(simuData)[i], col = rainbow(8), xaxt = 'n', tck = -0.01, xlab = '')
+  bp = boxplot(simuData[,i] ~ simuData$model3, main = names(simuData)[i], col = modelColors$color[order(modelColors$newLabel)], xaxt = 'n', tck = -0.01, xlab = '')
   axis(1, at = 1:8, labels = bp$names, las = 2, cex.axis = 1.4, tck = -0.01)
 }
 
