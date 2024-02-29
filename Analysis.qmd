@@ -377,7 +377,7 @@ Because simulation models differ substantially in the size of trees they typical
 
 # For all tree statistics, use statisticsIndices1, 
 # for tree statistics not strongly correlated with richness use statisticsIndices2
-statisticsIndices = statisticsIndices2
+statisticsIndices = statisticsIndices1
 
 statistics2 = colnames(simuData)[statisticsIndices]
 
@@ -570,9 +570,11 @@ crossPredictabilityPlot = function(CpredictabilityR2,
 # 2-panel figure showing cross-predictability for a) dispersal and b) speciation
 # This takes several minutes.
 
-speciationCP = crossPredictability(process = 'mut', iterations = 100)
+speciationCP = crossPredictability(process = 'mut', iterations = 100, 
+                                   allMetrics = TRUE)
 
-dispersalCP = crossPredictability(process = 'dis', iterations = 100)
+dispersalCP = crossPredictability(process = 'dis', iterations = 100,
+                                  allMetrics = TRUE)
 
 
 par(mfrow = c(1, 2), mar = c(6,7,4,4), mgp = c(3, 1, 0), oma = c(0, 0, 0, 1))
@@ -595,11 +597,11 @@ mtext("b)", 2, at = 1.2, las = 1, cex = 2.5, line = 2)
 # b) competition.
 # This takes several minutes.
 
-envCP = crossPredictability(process = 'env', iterations = 100)
+envCP = crossPredictability(process = 'env', iterations = 100, allMetrics = TRUE)
 
-comCP = crossPredictability(process = 'com', iterations = 100)
+comCP = crossPredictability(process = 'com', iterations = 100, allMetrics = TRUE)
 
-nicCP = crossPredictability(process = 'nic', iterations = 100)
+nicCP = crossPredictability(process = 'nic', iterations = 100, allMetrics = TRUE)
 
 par(mfrow = c(1, 2), mar = c(6,7,4,4), mgp = c(3, 1, 0), oma = c(0, 0, 0, 1))
 
@@ -666,7 +668,7 @@ for (i in 1:iterations) {
   for(j in 1:length(predictorsIndices)){
     for(k in 1:length(models)){
       tmp = simuData[simuData$model == models[k],c(predictorsIndices[j],
-                                                   statisticsIndices2)]
+                                                   statisticsIndices1)]
       tmp = tmp[complete.cases(tmp),]
       if(nrow(tmp) > 0){
         form = as.formula(paste(predictors[j], "~ ."))
