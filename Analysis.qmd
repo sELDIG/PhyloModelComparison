@@ -375,8 +375,11 @@ Because simulation models differ substantially in the size of trees they typical
 
 ```{r, cache=cacheData}
 
-# Tree statistics not strongly correlated with richness
-statistics2 = colnames(simuData)[statisticsIndices2]
+# For all tree statistics, use statisticsIndices1, 
+# for tree statistics not strongly correlated with richness use statisticsIndices2
+statisticsIndices = statisticsIndices2
+
+statistics2 = colnames(simuData)[statisticsIndices]
 
 predictability2 = array(dim = c(length(statistics2), 
                                 length(predictors), 
@@ -391,7 +394,7 @@ predictabilityR2CV = predictability2R2
 set.seed(0)
 for(j in 1:length(predictorsIndices)){
   for(k in 1:length(models)){
-    tmp = simuData[simuData$model == models[k],c(predictorsIndices[j], statisticsIndices2)]
+    tmp = simuData[simuData$model == models[k],c(predictorsIndices[j], statisticsIndices)]
     tmp = tmp[complete.cases(tmp),]
     if(nrow(tmp) > 0){
       form = as.formula(paste(predictors[j], "~ ."))
@@ -475,7 +478,12 @@ image.real <- function(mat, xCol = c("blue", "white", "white", "red"),
 
 crossPredictability = function(process, # env, dis, nic, mut, com
                                iterations = 100, 
+                               allMetrics = FALSE, #if TRUE, includes S-correlated
                                seed = 1) {
+  
+  # Specify metrics to use in RF (i.e. include richness-correlated metrics or not)
+  ifelse(allMetrics, statisticsIndices = statisticsIndices1,
+         statisticsIndices = statisticsIndices2)
   
   set.seed(seed)
   
@@ -493,7 +501,7 @@ crossPredictability = function(process, # env, dis, nic, mut, com
     for(k in 1:length(modelsTMP)){
       train = simuData[simuData$model == modelsTMP[k],
                        c(predictorsIndices[processIndex],
-                         statisticsIndices2)]
+                         statisticsIndices1)]
       train = train[complete.cases(train),]
       if(nrow(train) > 0){
         form = as.formula(paste(predictors[processIndex], "~ ."))
