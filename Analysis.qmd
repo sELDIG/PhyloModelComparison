@@ -482,9 +482,12 @@ crossPredictability = function(process, # env, dis, nic, mut, com
                                seed = 1) {
   
   # Specify metrics to use in RF (i.e. include richness-correlated metrics or not)
-  ifelse(allMetrics, statisticsIndices = statisticsIndices1,
-         statisticsIndices = statisticsIndices2)
-  
+  if (allMetrics) {
+    statisticsIndices = statisticsIndices1
+  } else {
+    statisticsIndices = statisticsIndices2
+  }
+
   set.seed(seed)
   
   processes = c('env', 'dis', 'nic', 'mut', 'com')
@@ -501,7 +504,7 @@ crossPredictability = function(process, # env, dis, nic, mut, com
     for(k in 1:length(modelsTMP)){
       train = simuData[simuData$model == modelsTMP[k],
                        c(predictorsIndices[processIndex],
-                         statisticsIndices1)]
+                         statisticsIndices)]
       train = train[complete.cases(train),]
       if(nrow(train) > 0){
         form = as.formula(paste(predictors[processIndex], "~ ."))
@@ -509,7 +512,7 @@ crossPredictability = function(process, # env, dis, nic, mut, com
       } 
       for(j in 1:length(modelsTMP)){
         test = simuData[simuData$model == modelsTMP[j],
-                        c(predictorsIndices[processIndex], statisticsIndices2)]
+                        c(predictorsIndices[processIndex], statisticsIndices)]
         test = test[complete.cases(test),]
         if(nrow(test) > 0 & k != j){
           y = predict(x, test)
