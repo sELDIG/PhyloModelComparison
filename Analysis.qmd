@@ -845,9 +845,10 @@ empiricalModelInferencePlot = function(process, # env1, dis1, mut1, nic1, com1
 
     barplot(tmpBarData, beside = T, yaxt = 'n', ylim = c(0, 3), border = NA, 
             xlim = c(0.5, 7), xaxt = 'n', space = c(bar.space, 1.4-bar.space))
+    axis(2, at = c(0, 0.25, 0.5, 0.75), labels = c(0, 25, 50, 75), las = 1)
   
     if (panelIndex %in% c(1, 4)) {
-      mtext("Tree Metrics\n(quantiles)", 2, cex = cex.quantiles, line = 1.8, at = 0.37)
+      mtext("Tree Metric\nquantile", 2, cex = cex.quantiles, line = 2.1, at = 0.37)
       mtext(paste("Inferred", processLabels[processes == process]), 2, cex = cex.process, line = 3, at = 2)
     }
     
