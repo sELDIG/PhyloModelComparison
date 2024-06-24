@@ -784,11 +784,18 @@ empiricalModelInferencePlot = function(process, # env1, dis1, mut1, nic1, com1
                                        cex.panel = 2,
                                        cex.legend = 1.5,
                                        cex.legendpts = 2,
+                                       line.process = 2,
+                                       line.quantile = 2.1,
+                                       line.clade = 2.5, 
+                                       line.metrics = 0.6,
+                                       cex.axis.quantiles = 1.5,
                                        legend = FALSE,
                                        model.abbrev = TRUE,
+                                       panel.margins = c(6, 5, 1, 1),
+                                       outer.margins = c(0, 3, 0, 0),
                                        bar.space = .1) {
   
-  par(mfrow = c(2, 3), mar = c(5, 3, 1, 1), oma = c(0, 3, 0, 0))
+  par(mfrow = c(2, 3), mar = panel.margins, oma = outer.margins)
 
   panelLetters = letters[1:6]
   panelIndex = 0
@@ -807,9 +814,9 @@ empiricalModelInferencePlot = function(process, # env1, dis1, mut1, nic1, com1
     plot(c(0.5,2.5), range(tmp$scaledValue), type = 'n', xaxt = 'n', xlab = "",
          ylab = "", las = 1, ylim = c(-.3, 1), yaxt = 'n')
   
-    mtext(tmp$cladeName[1:2], 1, at = 1:2, line = 2.5, cex = cex.clade, padj = 0.5)
+    mtext(tmp$cladeName[1:2], 1, at = 1:2, line = line.clade, cex = cex.clade, padj = 0.5)
     offset = metric.offset
-    mtext(c(met1label, met2label, met1label, met2label), 1, at = c(1.1 - offset, 1.05 + offset, 2.05 - offset, 2. + offset), line = .5, cex = cex.metrics)
+    mtext(c(met1label, met2label, met1label, met2label), 1, at = c(1.1 - offset, 1.05 + offset, 2.05 - offset, 2. + offset), line = line.metrics, cex = cex.metrics)
   
     axis(2, at = seq(0.1, 1, by = 0.1), las = 1, cex.axis = cex.axis)
  
@@ -827,7 +834,7 @@ empiricalModelInferencePlot = function(process, # env1, dis1, mut1, nic1, com1
     } #end models
   
     # panel label
-    text(.55, 0.97, paste0("(", panelLetters[panelIndex], ")"), cex = cex.panel)
+    text(.58, 0.97, paste0("(", panelLetters[panelIndex], ")"), cex = cex.panel)
 
     # Add barplots showing empirical values of mean.Iprime and VRD for the two sister clades
     par(new = T)
@@ -845,11 +852,13 @@ empiricalModelInferencePlot = function(process, # env1, dis1, mut1, nic1, com1
 
     barplot(tmpBarData, beside = T, yaxt = 'n', ylim = c(0, 3), border = NA, 
             xlim = c(0.5, 7), xaxt = 'n', space = c(bar.space, 1.4-bar.space))
-    axis(2, at = c(0, 0.25, 0.5, 0.75), labels = c(0, 25, 50, 75), las = 1)
+    axis(2, at = c(0, 0.25, 0.5, 0.75), labels = c(0, 25, 50, 75), las = 1, 
+         cex.axis = cex.axis.quantiles)
+    abline(h = c(.25, .5, .75), col = 'gray', lty = 'dashed')
   
     if (panelIndex %in% c(1, 4)) {
-      mtext("Tree Metric\nquantile", 2, cex = cex.quantiles, line = 2.1, at = 0.37)
-      mtext(paste("Inferred", processLabels[processes == process]), 2, cex = cex.process, line = 3, at = 2)
+      mtext("Tree Metric\nquantile", 2, cex = cex.quantiles, line = line.quantile, at = 0.37)
+      mtext(paste("Inferred", processLabels[processes == process]), 2, cex = cex.process, line = line.process, at = 2)
     }
     
     #if (legend & panelIndex %in% c(1,6)) {
@@ -896,19 +905,27 @@ empiricalModelInferencePlot('mut1', metric1='mntd', metric2='laplac_spectrum_p',
                             cex.process = 1.4, lwd = 4)
 
 
+empiricalModelInferencePlot('mut1', metric1='mntd', metric2='laplac_spectrum_p',
+                              met1label = 'MNTD', met2label = 'LSP', 
+                             model.abbrev = F, legend = TRUE, cex.legend = 2, 
+                             cex.legendpts = 2.5, cex.metrics = 1.5, 
+                             metric.offset = .24, cex.clade = 1.4, 
+                             cex.quantiles = 1.5, cex.panel = 3, 
+                             cex.axis = 1.75, bar.space = .35, 
+                             cex.process = 1.7, line.process = 5, line.quantile = 4, line.clade = 3, line.metrics = .9, cex.axis.quantiles = 1.75, lwd = 4, outer.margins = c(0, 4, 0, 0))
+
 # Plot of model inversion for dispersal across 6 empirical sister clade pairs
 # --bottom panel illustrates relative magnitude of average_leaf_depth and j_one
 # which were identified as the tree metrics with consistent responses to dispersal
 
 empiricalModelInferencePlot('dis1', metric1='average_leaf_depth', metric2='j_one',
-                            met1label = 'ALD', met2label = 'J_1', 
-                            model.abbrev = F, legend = TRUE, cex.legend = 1.7, 
-                            cex.legendpts = 2.5, cex.metrics = 1.1, 
-                            metric.offset = .24, cex.clade = 1.3, 
-                            cex.quantiles = 1.2, cex.panel = 2.5, 
-                            cex.axis = 1.3, bar.space = .35, 
-                            cex.process = 1.4, lwd = 4)
-
+                              met1label = 'ALD', met2label = 'J_1', 
+                             model.abbrev = F, legend = TRUE, cex.legend = 2, 
+                             cex.legendpts = 2.5, cex.metrics = 1.5, 
+                             metric.offset = .24, cex.clade = 1.4, 
+                             cex.quantiles = 1.5, cex.panel = 3, 
+                             cex.axis = 1.75, bar.space = .35, 
+                             cex.process = 1.7, line.process = 5, line.quantile = 4, line.clade = 3, line.metrics = .9, cex.axis.quantiles = 1.75, lwd = 4, outer.margins = c(0, 4, 0, 0))
 
 ```
 
