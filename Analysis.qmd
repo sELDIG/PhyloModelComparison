@@ -214,7 +214,8 @@ Plotting metric-process correlations across all models, metrics, and processes.
 
 ```{r}
 image.real3d <- function(mat, mat2, xCol = c("darkblue","blue", "lightblue", "gray94", "pink","red", "darkred"), 
-                       range = c(-1,1), x.labels = dimnames(mat)[[1]],      y.labels = dimnames(mat)[[2]], alpha = .01, cex.metrics = 0.5, 
+                       range = c(-1,1), x.labels = dimnames(mat)[[1]],      
+                       y.labels = dimnames(mat)[[2]], alpha = .01, cex.metrics = 0.5, 
                        cex.models = 0.7, cex.processes = 1,
                        cex.asterisk = 1,
                        boxes = FALSE, #draw a highlight box around consistent responses
@@ -233,9 +234,12 @@ image.real3d <- function(mat, mat2, xCol = c("darkblue","blue", "lightblue", "gr
                               yPos = seq(0.5, nrow(mat)-0.5, by = 1))
   
   newMat = matrix(nrow = dim(mat)[1], ncol = 50)
-  for(i in metric.order){   #1:dim(mat)[1]
-    for(k in 1:dim(mat)[2])
-      newMat[i,(1+(k-1)*10):((k-1)*10 + dim(mat)[3])] = mat[i,k,]
+  row.index = 0
+  for(i in 1:dim(mat)[1]){   
+    row.index = row.index + 1
+    for(k in 1:dim(mat)[2]) {
+      newMat[i,(1+(k-1)*10):((k-1)*10 + dim(mat)[3])] = mat[dend.order[row.index],k,]
+    }
   }
   
   newMat <- t(newMat)
