@@ -129,6 +129,15 @@ rownames(corrs) = metricNames
 par(mar = c(8, 8, 10, 8))
 heatmaply(corrs, colors = cool_warm)
 
+# Get clustering order of metric names for Figure 2
+dissim = 1- corrs
+distances = as.dist(dissim)
+hc = hclust(distances)
+dend = as.dendrogram(hc)
+dend2 = seriate_dendrogram(dend, distances)
+dend.order = order.dendrogram(dend2)
+
+
 # For metrics not strongly correlated with richness
 corrs2 = cor(simuData[, statisticsIndices2], use = "pairwise.complete.obs", )
 
@@ -212,17 +221,19 @@ image.real3d <- function(mat, mat2, xCol = c("darkblue","blue", "lightblue", "gr
                        boxProcesses, #vector of processes to highlight (of same length as boxMetrics, and processes can be repeated to highlight diff metrics)
                        boxMetrics, #vector of metrics to highlight (of same length as boxProcesses, and metrics can be repeated to highlight diff processes)
                        lwd = 4,
-                       srt = 60)
+                       srt = 60, 
+                       metric.order = 1:dim(mat)[1] #default is to list metrics in the order they appear in the columns of simuData, but can optionally pass an alternative order, e.g., that derived from the metric-correlation clustering
+                       )
   { 
   
   processPosition = data.frame(process = c('env', 'dis', 'nic', 'mut', 'com'),
                                xPos = c(0.6, 10.5, 20.5, 30.5, 40.5))
   
-  metricPosition = data.frame(metrics = rownames(mat), 
+  metricPosition = data.frame(metrics = rownames(mat)[dend.order], 
                               yPos = seq(0.5, nrow(mat)-0.5, by = 1))
   
   newMat = matrix(nrow = dim(mat)[1], ncol = 50)
-  for(i in 1:dim(mat)[1]){
+  for(i in metric.order){   #1:dim(mat)[1]
     for(k in 1:dim(mat)[2])
       newMat[i,(1+(k-1)*10):((k-1)*10 + dim(mat)[3])] = mat[i,k,]
   }
@@ -236,16 +247,15 @@ image.real3d <- function(mat, mat2, xCol = c("darkblue","blue", "lightblue", "gr
   abline(v = c(0,10,20,30,40,50) + 0.5)
   abline(v = c(0,10,20,30,40,50) - 1.5)
   abline(h = c(1:(dim(mat)[1] +1)) + 0.5)
-  axis(2, at = 1:nrow(mat), labels = x.labels, las = 2, cex.axis = cex.metrics)
+  axis(2, at = metric.order, labels = x.labels, las = 2, cex.axis = cex.metrics)
   axis(3, at = seq(5, 45, by = 10), labels = y.labels, cex.axis = cex.processes, las = 1)
   axis(1, at = xpos, labels = F)
-  #axis(1, at = xpos, labels = rep(dimnames(mat)[[3]], 5), cex.axis = cex.models, las = 2)
   box() 
   
   text(x = xpos, y = 0, srt = srt, adj = 1, xpd = TRUE, labels = rep(dimnames(mat)[[3]], 5), cex = cex.models)
   
   # Add *s where correlation's p is below alpha
-  for(i in 1:dim(mat2)[1]){
+  for(i in metric.order){    # 1:dim(mat2)[1]
     for(k in 1:dim(mat2)[2]){
        for(j in 1:dim(mat2)[3])
         if(!is.na(mat2[i,k,j]) & mat2[i,k,j] < alpha){
