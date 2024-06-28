@@ -272,7 +272,7 @@ image.real3d <- function(mat, mat2, xCol = c("darkblue","blue", "lightblue", "gr
     for(k in 1:dim(mat2)[2]){
        for(j in 1:dim(mat2)[3])
         if(!is.na(mat2[i,k,j]) & mat2[i,k,j] < alpha){
-          text(x = 10*(k-1) +j,  y = metricPosition$yPos[metricPosition$metrics == x.labels[i]], labels = "*", cex = cex.asterisk )
+          text(x = 10*(k-1) +j,  y = (1:dim(mat2)[1])[metricPosition$metrics == x.labels[i]], labels = "*", cex = cex.asterisk )
       }
     }
   } # end * loop
