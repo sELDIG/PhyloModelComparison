@@ -134,8 +134,17 @@ dissim = 1- corrs
 distances = as.dist(dissim)
 hc = hclust(distances)
 dend = as.dendrogram(hc)
+dend.order2 = order.dendrogram(dend)
 dend2 = seriate_dendrogram(dend, distances)
 dend.order = order.dendrogram(dend2)
+
+# Get clustering order of metric names for Figure 2 based on absolute value of correlations
+dissim = 1 - abs(corrs)
+distances = as.dist(dissim)
+hc = hclust(distances)
+dend = as.dendrogram(hc)
+dend.order = order.dendrogram(dend)
+
 
 
 # For metrics not strongly correlated with richness
@@ -230,7 +239,7 @@ image.real3d <- function(mat, mat2, xCol = c("darkblue","blue", "lightblue", "gr
   processPosition = data.frame(process = c('env', 'dis', 'nic', 'mut', 'com'),
                                xPos = c(0.6, 10.5, 20.5, 30.5, 40.5))
   
-  metricPosition = data.frame(metrics = rownames(mat)[dend.order], 
+  metricPosition = data.frame(metrics = rownames(mat)[metric.order], 
                               yPos = seq(0.5, nrow(mat)-0.5, by = 1))
   
   newMat = matrix(nrow = dim(mat)[1], ncol = 50)
@@ -251,7 +260,7 @@ image.real3d <- function(mat, mat2, xCol = c("darkblue","blue", "lightblue", "gr
   abline(v = c(0,10,20,30,40,50) + 0.5)
   abline(v = c(0,10,20,30,40,50) - 1.5)
   abline(h = c(1:(dim(mat)[1] +1)) + 0.5)
-  axis(2, at = metric.order, labels = x.labels, las = 2, cex.axis = cex.metrics)
+  axis(2, at = ypos, labels = x.labels[metric.order], las = 2, cex.axis = cex.metrics)
   axis(3, at = seq(5, 45, by = 10), labels = y.labels, cex.axis = cex.processes, las = 1)
   axis(1, at = xpos, labels = F)
   box() 
@@ -259,11 +268,11 @@ image.real3d <- function(mat, mat2, xCol = c("darkblue","blue", "lightblue", "gr
   text(x = xpos, y = 0, srt = srt, adj = 1, xpd = TRUE, labels = rep(dimnames(mat)[[3]], 5), cex = cex.models)
   
   # Add *s where correlation's p is below alpha
-  for(i in metric.order){    # 1:dim(mat2)[1]
+  for(i in 1:dim(mat2)[1]){     
     for(k in 1:dim(mat2)[2]){
        for(j in 1:dim(mat2)[3])
         if(!is.na(mat2[i,k,j]) & mat2[i,k,j] < alpha){
-          text(x = 10*(k-1) +j,  y = i, labels = "*", cex = cex.asterisk )
+          text(x = 10*(k-1) +j,  y = metricPosition$yPos[metricPosition$metrics == x.labels[i]], labels = "*", cex = cex.asterisk )
       }
     }
   } # end * loop
@@ -454,7 +463,7 @@ x = barplot(t((predictabilityR2CV))^2, beside = T, las = 1, horiz = F, ylim = c(
 
 # Add 'x' where process is missing from model
 missing.x = x[is.na(t(predictabilityR2CV))]
-text(x = missing.x, y = rep(0.02, length(missing.x)), '-', cex = 2)
+text(x = missing.x, y = rep(0.02, length(missing.x)), 'X', cex = 1.5)
 
 axis(1, at = c(5, 14, 23, 32, 41), labels = c("Env.\nfiltering", "Dispersal", "Niche\nconserv.", "Speciation", "Competition"), cex.axis = 1.6, line = 1.3, tick = F)
 
@@ -462,7 +471,7 @@ axis(1, at = c(0, 9.5, 18.5, 27.5, 36.5, 45.5), tick = T, tck = -0.04, labels = 
 
 # Legend
 text(6, 1.01, "Models", cex = 2)
-legend(0, 1, legend = modelColors$newLabel, fill = modelColors$color, ncol = 2, bty = 'n', cex = 1.5)
+legend(0, 1, legend = modelColors$newLabel, fill = modelColors$color, ncol = 2, bty = 'n', cex = 1.8)
 
 ```
 
