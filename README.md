@@ -1,6 +1,8 @@
 # Linking pattern to process using phylogenies—insights from a comparison of eight simulation models
 
-Allen H. Hurlbert, Florian Hartig, Juliano Sarmento Cabral, Rampal S. Etienne, Oskar Hagen, Shan Huang, Yun-Ting Jang, Thijs Janzen, Antonin Machac, Pedro Santos Neves, Mikael Pontarp, David Storch, Liang Xu  
+Allen H. Hurlbert*, Juliano Sarmento Cabral, Rampal S. Etienne, Oskar Hagen, Shan Huang, Yun-Ting Jang, Thijs Janzen, Antonin Machac, Pedro Santos Neves, Mikael Pontarp, David Storch, Liang Xu, Florian Hartig*   
+
+*Equally contributing lead authors
 
 This repository contains code underlying the comparison of 8 eco-evolutionary simulation models and the evaluation of links between eco-evolutionary processes and phylogenetic patterns.  
 
