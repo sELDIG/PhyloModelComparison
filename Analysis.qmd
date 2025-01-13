@@ -88,11 +88,13 @@ metricCors = cor(simuData[, 24:75], use = "pairwise.complete.obs")
 # Metrics strongly correlated (> 0.9) with number_of_lineages
 richnessCorrelatedMetrics = row.names(metricCors)[metricCors[,1] >= 0.9]
 
-# all 52 tree metrics
-statisticsIndices1 = which(names(simuData) %in% row.names(metricCors))
+# all 52 tree metrics (now removing mntd)
+statisticsIndices1 = which(names(simuData) %in% row.names(metricCors) &
+                             names(simuData) != 'mntd')
 # Only the tree metrics not strongly correlated with richness
 statisticsIndices2 = which(names(simuData) %in% row.names(metricCors) & 
-                             !names(simuData) %in% richnessCorrelatedMetrics) 
+                             !names(simuData) %in% richnessCorrelatedMetrics &
+                             names(simuData) != 'mntd') 
 
 # Indices for the 5 simulation processes (env, dis, mut, nic, com)
 predictorsIndices = c(14,16,18,20,22)
