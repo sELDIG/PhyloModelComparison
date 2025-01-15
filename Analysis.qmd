@@ -53,7 +53,7 @@ treeOutput = read.table('derived_tree_data/USE_treeStats.txt', sep = '\t', heade
 # Join process-parameter linkage dataframe to tree output
 allSimuData = left_join(processDF, treeOutput, by = c('model', 'simID'))
 
-write.csv(simuData, 
+write.csv(allSimuData, 
           'derived_tree_data/process_parameter_values_and_tree_metrics_sign_corrected.csv', row.names = F)
 
 
