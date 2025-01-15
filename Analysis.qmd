@@ -78,24 +78,23 @@ pweird = filter(allSimuData, model == "pontarp", env1 > .9, env1 < .95,
                 nic1 > -.039, nic1 < -.021)
 
 # Filter those out, and remove tree_height and crown_age
+#   as well as mntd and mpd which are redundant with mean_branch_length_ext 
+#   and psv, respectively
 simuData = allSimuData %>%
   filter(!(model == "pontarp" & simID %in% pweird$simID)) %>%
-  dplyr::select(-tree_height, -crown_age)
+  dplyr::select(-tree_height, -crown_age, -mntd, -mpd)
 
 # Visualize correlation matrix of tree metrics
-metricCors = cor(simuData[, 24:75], use = "pairwise.complete.obs")
+metricCors = cor(simuData[, 24:ncol(simuData)], use = "pairwise.complete.obs")
 
 # Metrics strongly correlated (> 0.9) with number_of_lineages
 richnessCorrelatedMetrics = row.names(metricCors)[metricCors[,1] >= 0.9]
 
-# all 50 tree metrics (now removing mntd and mpd, mathematically redundant to 
-#                      mean_branch_length_ext and psv, respectively)
-statisticsIndices1 = which(names(simuData) %in% row.names(metricCors) &
-                             !names(simuData) %in% c('mntd', 'mpd'))
+# all 50 tree metrics
+statisticsIndices1 = which(names(simuData) %in% row.names(metricCors))
 # Only the tree metrics not strongly correlated with richness
 statisticsIndices2 = which(names(simuData) %in% row.names(metricCors) & 
-                             !names(simuData) %in% richnessCorrelatedMetrics &
-                             !names(simuData) %in% c('mntd', 'mpd'))
+                             !names(simuData) %in% richnessCorrelatedMetrics)
 
 # Indices for the 5 simulation processes (env, dis, mut, nic, com)
 predictorsIndices = c(14,16,18,20,22)
