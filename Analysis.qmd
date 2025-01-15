@@ -340,57 +340,6 @@ dev.off()
 # add to the right side of the all_metrics_correlations.pdf plot.
 # Best if copied from window with wide x short dimensions.
 
-
-
-# Plotting only the subset of metrics that are not redundant with each other
-# or richness, aside from those commonly known 
-
-# *NOTE: This figure using image.real3d is not currently working for this subset.*
-
-# Whether or not to include tree metrics for this plot
-# These were identified as redundant/correlated from the overall correlation plot
-redundantMetrics = c('mean_branch_length', 'mean_branch_length_ext', 'nltt_base',
-                     'max_depth', 'diameter', 'area_per_pair', 'var_depth')
-
-metricsToPlot = dimnames(R2MatFull)[[1]] %in% rownames(agreement) &
-                           !dimnames(R2MatFull)[[1]] %in% redundantMetrics &
-                           !dimnames(R2MatFull)[[1]] %in% richnessCorrelatedMetrics
-
-# But add back number_of_lineages and several common metrics
-commonMetrics = c('number_of_lineages', 'gamma', 'beta', 'vpd', 'psv', 'average_leaf_depth')
-metricsToPlot[dimnames(R2MatFull)[[1]] %in% commonMetrics] = TRUE
-
-highlightMat = R2MatFull[metricsToPlot,,]
-pMatHighlight = pMatFull[metricsToPlot,,]
-
-
-# Tidier labels
-alt.x.labels = dimnames(highlightMat)[[1]]
-
-# Modifying a few model abbreviations here (e.g. am and pw)
-dimnames(highlightMat)[[3]] = c("ca", "fh", "ge", "hs", "am", "pw", "ve", "xe")
-
-# Of the metrics that exhibit consistency across models, just select those
-# that will be highlighted in the figure
-envMetrics = env.metrics[env.metrics %in% rownames(highlightMat)]
-disMetrics = dis.metrics[dis.metrics %in% rownames(highlightMat)]
-mutMetrics = mut.metrics[mut.metrics %in% rownames(highlightMat)]
-
-par(mfrow = c(1,1), mar = c(4,11,3,3), oma = c(3, 2, 2, 0))
-
-image.real3d(highlightMat, pMatHighlight, x.labels = alt.x.labels, 
-             y.labels = c("env. filtering", "dispersal", "niche conserv.", "speciation", "competition"),
-             cex.metrics = 1.4, cex.models = 1.4, cex.processes = 1.6,
-             boxes = T, boxProcesses = c(rep('env', length(envMetrics)),
-                                         rep('dis', length(disMetrics)),
-                                         rep('mut', length(mutMetrics))), 
-             boxMetrics = c(envMetrics, disMetrics, mutMetrics), lwd = 4,
-             srt = 90, cex.asterisk = 2)
-
-mtext("Models", 1, outer = TRUE, cex = 2.5, at = .53, line = 1.5)
-mtext("Metrics", 2, cex = 2.5, outer = TRUE)
-mtext("Processes", 3, cex = 2.5, outer = TRUE, at = 0.53)
-
 ```
 
 # Model inversion
