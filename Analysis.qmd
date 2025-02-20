@@ -80,8 +80,11 @@ pweird = filter(allSimuData, model == "pontarp", env1 > .9, env1 < .95,
 # Filter those out, and remove tree_height and crown_age
 #   as well as mntd and mpd which are redundant with mean_branch_length_ext 
 #   and psv, respectively
+
+# Also exclude trees with fewer than 3 tips.
 simuData = allSimuData %>%
-  filter(!(model == "pontarp" & simID %in% pweird$simID)) %>%
+  filter(!(model == "pontarp" & simID %in% pweird$simID),
+         number_of_lineages >= 3) %>%
   dplyr::select(-tree_height, -crown_age, -mntd, -mpd)
 
 # Visualize correlation matrix of tree metrics
@@ -128,10 +131,8 @@ metricNames = colnames(simuData)[statisticsIndices1]
 colnames(corrs) = metricNames
 rownames(corrs) = metricNames
 
-png("figures/FigureS1_metric_correlations.png", height = 1200, width = 900)
 par(mar = c(8, 8, 10, 8))
 heatmaply(corrs, colors = cool_warm)
-dev.off()
 
 # Get clustering order of metric names for Figure 2 based on absolute value of correlations
 dissim = 1 - abs(corrs)
@@ -295,17 +296,17 @@ image.real3d <- function(mat, mat2, xCol = c("darkblue","blue", "lightblue", "gr
 # mean_branch_length_ext, so only one is chosen to be included in the plot
 # based on which is likely to be more familiar or intuitive to readers.
 
-agreement = numSigAgreements[(numAgreements[,1] >= 5 & numSigAgreements[,1] >= 4) |
-                            (numAgreements[,2] >= 7 & numSigAgreements[,2] >= 6) | 
-                            (numAgreements[,3] >= 4 & numSigAgreements[,3] >= 3) | 
-                            (numAgreements[,4] >=7 & numSigAgreements[,4] >=6) | 
-                            (numAgreements[,5] >= 6 & numSigAgreements[,5] >= 5),]
+agreement = numSigAgreements[(numAgreements[,1] >= 5 & numSigAgreements[,1] >= 5) |
+                            (numAgreements[,2] >= 7 & numSigAgreements[,2] >= 7) | 
+                            (numAgreements[,3] >= 4 & numSigAgreements[,3] >= 4) | 
+                            (numAgreements[,4] >=7 & numSigAgreements[,4] >=7) | 
+                            (numAgreements[,5] >= 6 & numSigAgreements[,5] >= 6),]
 
-env.metrics = rownames(agreement)[agreement[,1] >= 4]
-dis.metrics = rownames(agreement)[agreement[,2] >= 6]
-nic.metrics = rownames(agreement)[agreement[,3] >= 3]
-mut.metrics = rownames(agreement)[agreement[,4] >= 6]
-com.metrics = rownames(agreement)[agreement[,5] >= 5]
+env.metrics = rownames(agreement)[agreement[,1] >= 5]
+dis.metrics = rownames(agreement)[agreement[,2] >= 7]
+nic.metrics = rownames(agreement)[agreement[,3] >= 4]
+mut.metrics = rownames(agreement)[agreement[,4] >= 7]
+com.metrics = rownames(agreement)[agreement[,5] >= 6]
 
 
 
@@ -317,12 +318,12 @@ alt.x.labels = dimnames(R2MatFull)[[1]]
 # Modifying a few model abbreviations here (e.g. am and pw)
 dimnames(R2MatFull)[[3]] = c("ca", "fh", "ge", "hs", "am", "pw", "ve", "xe")
 
-pdf('figures/all_metric_correlations.pdf', height = 15, width = 13)
+pdf('figures/all_metric_correlations_boxes.pdf', height = 15, width = 13)
 par(mfrow = c(1,1), mar = c(4,15,3,3), oma = c(3, 0, 2, 0))
 
 image.real3d(R2MatFull, pMatFull, x.labels = alt.x.labels, y.labels = c("Env. filtering", "Dispersal", "Niche conserv.", "Speciation", "Competition"),
              cex.metrics = 1.4, cex.models = 1.3, cex.processes = 1.4,
-             boxes = F, 
+             boxes = T, 
              boxProcesses = c(rep('env', length(env.metrics)),
                                          rep('dis', length(dis.metrics)),
                                          rep('mut', length(mut.metrics))), 
@@ -379,14 +380,14 @@ for(j in 1:length(predictorsIndices)){
       form = as.formula(paste(predictors[j], "~ ."))
       x = ranger(form, data = tmp, 
                  importance = 'permutation',
-                scale.permutation.importance = T)
+                scale.permutation.importance = T, num.trees = 5000)
       predictability2[,j,k] = importance(x)     
       predictability2R2[j,k] = x$r.squared
       
       cvindices = sample(1:5, size = nrow(tmp), replace = T)
       r2 = rep(NA, 5)
       for(i in 1:5){
-         x = ranger(form, data = tmp[cvindices != i, ])
+         x = ranger(form, data = tmp[cvindices != i, ], num.trees = 5000)
          xp = predict(x, data = tmp[cvindices == i,] )
          r2[i] = cor(tmp[cvindices == i, 1], xp$predictions)
       }
@@ -456,7 +457,7 @@ image.real <- function(mat, xCol = c("blue", "white", "white", "red"),
 # Function for plotting cross-model predictability
 
 crossPredictability = function(process, # env, dis, nic, mut, com
-                               iterations = 100, 
+                               num.trees = 5000, 
                                allMetrics = FALSE, #if TRUE, includes S-correlated
                                seed = 1) {
   
@@ -476,9 +477,7 @@ crossPredictability = function(process, # env, dis, nic, mut, com
   
   modelsTMP = models[modelsToInclude]
 
-  CpredictabilityR2raw = array(dim = c(length(modelsTMP), length(modelsTMP), iterations))
-
-  for (i in 1:iterations) {
+  CpredictabilityR2 = array(dim = c(length(modelsTMP), length(modelsTMP)))
 
     for(k in 1:length(modelsTMP)){
       train = simuData[simuData$model == modelsTMP[k],
@@ -487,7 +486,7 @@ crossPredictability = function(process, # env, dis, nic, mut, com
       train = train[complete.cases(train),]
       if(nrow(train) > 0){
         form = as.formula(paste(predictors[processIndex], "~ ."))
-        x = ranger(form, data = train)
+        x = ranger(form, data = train, num.trees = num.trees)
       } 
       for(j in 1:length(modelsTMP)){
         test = simuData[simuData$model == modelsTMP[j],
@@ -495,15 +494,12 @@ crossPredictability = function(process, # env, dis, nic, mut, com
         test = test[complete.cases(test),]
         if(nrow(test) > 0 & k != j){
           y = predict(x, test)
-          CpredictabilityR2raw[k,j,i] = cor(y$predictions, test[,1], 
+          CpredictabilityR2[k,j] = cor(y$predictions, test[,1], 
                                          method = "kendall")
         } # end if
       } # end j testing 
     } # end k training
-  } # end i iterations
 
-  # Average across all iterations to get a mean correlation
-  CpredictabilityR2 = rowMeans(CpredictabilityR2raw, dims = 2)
 
   rownames(CpredictabilityR2) = modelAbbrevs$new[modelAbbrevs$original %in% modelsTMP]
   colnames(CpredictabilityR2) = modelAbbrevs$new[modelAbbrevs$original %in% modelsTMP]
@@ -549,10 +545,10 @@ crossPredictabilityPlot = function(CpredictabilityR2,
 # 2-panel figure showing cross-predictability for a) dispersal and b) speciation
 # This takes several minutes.
 
-speciationCP = crossPredictability(process = 'mut', iterations = 100, 
+speciationCP = crossPredictability(process = 'mut', num.trees = 5000, 
                                    allMetrics = TRUE)
 
-dispersalCP = crossPredictability(process = 'dis', iterations = 100,
+dispersalCP = crossPredictability(process = 'dis', num.trees = 5000,
                                   allMetrics = TRUE)
 
 
@@ -576,11 +572,11 @@ mtext("b)", 2, at = 1.2, las = 1, cex = 2.5, line = 2)
 # b) competition.
 # This takes several minutes.
 
-envCP = crossPredictability(process = 'env', iterations = 100, allMetrics = TRUE)
+envCP = crossPredictability(process = 'env', num.trees = 5000, allMetrics = TRUE)
 
-comCP = crossPredictability(process = 'com', iterations = 100, allMetrics = TRUE)
+comCP = crossPredictability(process = 'com', num.trees = 5000, allMetrics = TRUE)
 
-nicCP = crossPredictability(process = 'nic', iterations = 100, allMetrics = TRUE)
+nicCP = crossPredictability(process = 'nic', num.trees = 5000, allMetrics = TRUE)
 
 par(mfrow = c(1, 2), mar = c(6,7,4,4), mgp = c(3, 1, 0), oma = c(0, 0, 0, 1))
 
@@ -625,10 +621,9 @@ empiricalMetrics$cladeName = c('Xenarthra', 'Afrotheria',
 empiricalMetrics$tree2 = word(empiricalMetrics$tree, sep = '.tre')
 
 # The metrics not strongly correlated with richness that were used for RF models
-empMetrics2 = empiricalMetrics[, statistics2]
+empMetrics2 = empiricalMetrics[, colnames(simuData)[statisticsIndices2]]
 
 predictedValues2reps = data.frame(tree = character(),
-                              rep = numeric(),
                               model = character(), 
                               predictor = character(),
                               value = numeric())
@@ -638,25 +633,21 @@ predictability2R2 = array(dim = c(length(predictors), length(models)))
 
 # For each combination of process (predictorsIndices) and simulation model, infer the strength of process for each empirical tree based on the RF
 
-# Run over multiple iterations to account for stochasticity in RF
-# This takes several minutes.
-iterations = 100
 
 set.seed(1)
-for (i in 1:iterations) {
   for(j in 1:length(predictorsIndices)){
     for(k in 1:length(models)){
       tmp = simuData[simuData$model == models[k],c(predictorsIndices[j],
-                                                   statisticsIndices1)]
+                                                   statisticsIndices2)]
       tmp = tmp[complete.cases(tmp),]
       if(nrow(tmp) > 0){
         form = as.formula(paste(predictors[j], "~ ."))
         x = ranger(form, data = tmp, importance = 'permutation',
-                   scale.permutation.importance = T)
+                   scale.permutation.importance = T,
+                   num.trees = 5000)
         predictions = predict(x, data = empMetrics2)
       
         tmpPredictions = data.frame(tree = word(empiricalMetrics$tree, 1, sep = fixed('.')),
-                                    rep = rep(i, nrow(empMetrics2)),
                                     model = rep(models[k], nrow(empMetrics2)),
                                     predictor = rep(predictors[j], nrow(empMetrics2)),
                                     value = predictions$predictions)
@@ -666,7 +657,7 @@ for (i in 1:iterations) {
       } # end if
     } # end models
   } # end predictors
-} # end iterations
+
 
 predictedValues2 = predictedValues2reps %>%
   group_by(tree, model, predictor) %>%
