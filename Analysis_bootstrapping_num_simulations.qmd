@@ -86,7 +86,7 @@ pweird = filter(allSimuData, model == "pontarp", env1 > .9, env1 < .95,
 # Also exclude trees with fewer than 3 tips.
 
 # Bootstrap iteration (value of 1:5)
-boot = 5
+boot = 2
 set.seed(boot)
 
 simuData = allSimuData %>%
