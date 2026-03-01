@@ -13,10 +13,28 @@ editor_options:
 cacheData = F
 ```
 
-# Calculate tree metrics and align with model processes
+```{r}
+library(RColorBrewer)
+library(dplyr)
+library(tidyr)
+library(ranger)
+library(stringr)
+library(heatmaply)
+```
+
+
+```{r}
+set.seed(123)
+bootstrap = NULL
+```
+
+# Data preparation
+
+## Calculate tree metrics and align with model processes
 
 ```{r}
 source('code/analysis_functions.r')
+
 
 #metricsForManyTrees(list.files("trees/uniform_sampling_experiment"),
 #                    treedir = "trees/uniform_sampling_experiment",
@@ -43,10 +61,12 @@ for (m in modelList) {
   }
   
 }
+```
 
-# Join tree metrics to the aligned parameter-process dataframe: for analysis, use **processDFmetrics**
-# Script for calculating tree metrics for trees that have not already been analyzed
+Join tree metrics to the aligned parameter-process dataframe: for analysis, use **processDFmetrics**
+Script for calculating tree metrics for trees that have not already been analyzed
 
+```{r}
 # Read in existing output file
 treeOutput = read.table('derived_tree_data/USE_treeStats.txt', sep = '\t', header = T)
 
@@ -55,20 +75,11 @@ allSimuData = left_join(processDF, treeOutput, by = c('model', 'simID'))
 
 write.csv(allSimuData, 
           'derived_tree_data/process_parameter_values_and_tree_metrics_sign_corrected.csv', row.names = F)
-
-
 ```
 
-# Read and process data
+NOTE FLORIAN: seems a bit redundant to write and read again and there are minimal numeric differences and factor difference when using all.equal(allSimuData,allSimuData2) but I will leave it for the moment 
 
 ```{r}
-library(RColorBrewer)
-library(dplyr)
-library(tidyr)
-library(ranger)
-library(stringr)
-library(heatmaply)
-
 # Read in simulated tree data
 allSimuData <- read.csv("derived_tree_data/process_parameter_values_and_tree_metrics_sign_corrected.csv", stringsAsFactors = T)
 
@@ -76,17 +87,42 @@ allSimuData <- read.csv("derived_tree_data/process_parameter_values_and_tree_met
 pweird = filter(allSimuData, model == "pontarp", env1 > .9, env1 < .95, 
                 dis1 > .09, dis1 < .095, com1 > .26, com1 < .27, 
                 nic1 > -.039, nic1 < -.021)
+```
 
-# Filter those out, and remove tree_height and crown_age
-#   as well as mntd and mpd which are redundant with mean_branch_length_ext 
-#   and psv, respectively
+## Selection of the data 
 
-# Also exclude trees with fewer than 3 tips.
+* filer out pweird
+* remove tree_height and crown_age as well as mntd and mpd which are redundant with mean_branch_length_ext and psv, respectively
+* exclude trees with fewer than 3 tips.
+
+PLUS: bootstrap if bootstrap is set
+
+```{r}
+if (is.null(bootstrap)){
 simuData = allSimuData %>%
   filter(!(model == "pontarp" & simID %in% pweird$simID),
          number_of_lineages >= 3) %>%
-  dplyr::select(-tree_height, -crown_age, -mntd, -mpd)
+  dplyr::select(-tree_height, -crown_age, -mntd, -mpd)  
+} else {
+  
+  set.seed(bootstrap)
+  
+  simuData = allSimuData %>%
+  filter(!(model == "pontarp" & simID %in% pweird$simID),
+         number_of_lineages >= 3) %>%
+  dplyr::select(-tree_height, -crown_age, -mntd, -mpd) %>%
+  group_by(model) %>%
+  # Bootstrapping here, resampling the simulations with replacement,
+  # prop is the proportion of group to resample (i.e. entire group)
+  slice_sample(prop = 1, replace = TRUE) %>% 
+  ungroup()
+}
 
+```
+
+
+
+```{r}
 # Visualize correlation matrix of tree metrics
 metricCors = cor(simuData[, 24:ncol(simuData)], use = "pairwise.complete.obs")
 
@@ -114,16 +150,15 @@ modelAbbrevs = data.frame(original = c('ca', 'fh', 'gen', 'hs', 'la', 'pontarp',
                     com = c(TRUE, TRUE, TRUE, FALSE, TRUE, TRUE, FALSE, TRUE))
 
 models = modelAbbrevs$original
-
-
 ```
 
 # Clustering / redundancy analysis
 
 The following code illustrates the pairwise correlations among tree shape metrics, first for all metrics, and second for just the set of metrics that are not strongly (r \> 0.9) correlated with species richness.
 
+Correlation among indices
+
 ```{r}
-# Correlation among indices
 corrs = cor(simuData[, statisticsIndices1], use = "pairwise.complete.obs", )
 
 metricNames = colnames(simuData)[statisticsIndices1]
@@ -133,17 +168,22 @@ rownames(corrs) = metricNames
 
 par(mar = c(8, 8, 10, 8))
 heatmaply(corrs, colors = cool_warm)
+```
 
-# Get clustering order of metric names for Figure 2 based on absolute value of correlations
+Get clustering order of metric names for Figure 2 based on absolute value of correlations
+
+```{r}
 dissim = 1 - abs(corrs)
 distances = as.dist(dissim)
 hc = hclust(distances)
 dend = as.dendrogram(hc)
 dend.order = order.dendrogram(dend)
 
+```
 
+For metrics not strongly correlated with richness
 
-# For metrics not strongly correlated with richness
+```{r}
 corrs2 = cor(simuData[, statisticsIndices2], use = "pairwise.complete.obs", )
 
 metricNames2 = colnames(simuData)[statisticsIndices2]
@@ -153,8 +193,8 @@ rownames(corrs2) = metricNames2
 
 par(mar = c(8, 8, 10, 8))
 heatmaply(corrs2, colors = cool_warm)
-
 ```
+
 
 # Consistency analysis
 
@@ -287,15 +327,14 @@ image.real3d <- function(mat, mat2, xCol = c("darkblue","blue", "lightblue", "gr
 } #end function
 ```
 
+
+Correlation plot highlighting metrics with strong correlation agreement
+
+Two versions, one with all metrics, and one only including one metric per correlated cluster.
+
+Eg, mntd is strongly correlated with mean_branch_length_ext and mean_branch_length_ext, so only one is chosen to be included in the plot based on which is likely to be more familiar or intuitive to readers.
+
 ```{r}
-# Correlation plot highlighting metrics with strong correlation agreement
-
-# Two versions, one with all metrics, and one
-# only including one metric per correlated cluster.
-# Eg, mntd is strongly correlated with mean_branch_length_ext and
-# mean_branch_length_ext, so only one is chosen to be included in the plot
-# based on which is likely to be more familiar or intuitive to readers.
-
 agreement = numSigAgreements[(numAgreements[,1] >= 5 & numSigAgreements[,1] >= 5) |
                             (numAgreements[,2] >= 7 & numSigAgreements[,2] >= 7) | 
                             (numAgreements[,3] >= 4 & numSigAgreements[,3] >= 4) | 
@@ -307,8 +346,6 @@ dis.metrics = rownames(agreement)[agreement[,2] >= 7]
 nic.metrics = rownames(agreement)[agreement[,3] >= 4]
 mut.metrics = rownames(agreement)[agreement[,4] >= 7]
 com.metrics = rownames(agreement)[agreement[,5] >= 6]
-
-
 
 # Correlation plot with ALL tree metrics for supplement
 
@@ -340,7 +377,6 @@ dev.off()
 # which must be both flipped horizontally and then rotated 90 deg to
 # add to the right side of the all_metrics_correlations.pdf plot.
 # Best if copied from window with wide x short dimensions.
-
 ```
 
 # Model inversion
@@ -370,8 +406,8 @@ predictability2R2 = array(dim = c(length(predictors),
 rownames(predictability2R2) = predictors
 colnames(predictability2R2) = models
 predictabilityR2CV = predictability2R2
+models = as.list(predictabilityR2CV)
 
-set.seed(0)
 for(j in 1:length(predictorsIndices)){
   for(k in 1:length(models)){
     tmp = simuData[simuData$model == models[k],c(predictorsIndices[j], statisticsIndices)]
@@ -390,6 +426,7 @@ for(j in 1:length(predictorsIndices)){
          x = ranger(form, data = tmp[cvindices != i, ], num.trees = 5000)
          xp = predict(x, data = tmp[cvindices == i,] )
          r2[i] = cor(tmp[cvindices == i, 1], xp$predictions)
+         models
       }
       predictabilityR2CV[j,k] = mean(r2)
     } 
@@ -512,8 +549,7 @@ image.real <- function(mat, xCol = c("blue", "white", "white", "red"),
 
 crossPredictability = function(process, # env, dis, nic, mut, com
                                num.trees = 5000, 
-                               allMetrics = FALSE, #if TRUE, includes S-correlated
-                               seed = 1) {
+                               allMetrics = FALSE, #if TRUE, includes S-correlated) {
   
   # Specify metrics to use in RF (i.e. include richness-correlated metrics or not)
   if (allMetrics) {
@@ -522,8 +558,6 @@ crossPredictability = function(process, # env, dis, nic, mut, com
     statisticsIndices = statisticsIndices2
   }
 
-  set.seed(seed)
-  
   processes = c('env', 'dis', 'nic', 'mut', 'com')
   processIndex = which(processes == process)
   
@@ -656,7 +690,7 @@ mtext("c)", 2, at= 1.2, las = 1, cex = 2.5, line = 2)
 
 ## within each model
 
-Run random forests within each simulation model in order to predict model parameter values from simulation-derived tree shape metrics. Then plug in empirical tree shape metrics to infer a process parameter value assuming that the tree arose from the processes represented by a particular simulation model.
+Run random forests within each simulation model ito predict model parameter values from simulation-derived tree shape metrics. Then plug in empirical tree shape metrics to infer a process parameter value assuming that the tree arose from the processes represented by a particular simulation model.
 
 ```{r}
 
@@ -688,7 +722,6 @@ predictability2R2 = array(dim = c(length(predictors), length(models)))
 # For each combination of process (predictorsIndices) and simulation model, infer the strength of process for each empirical tree based on the RF
 
 
-set.seed(1)
   for(j in 1:length(predictorsIndices)){
     for(k in 1:length(models)){
       tmp = simuData[simuData$model == models[k],c(predictorsIndices[j],
