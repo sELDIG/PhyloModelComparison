@@ -1,5 +1,7 @@
 ---
 title: "Analysis"
+author: "Allen Hulbert, Florian Hartig"
+date: "`r Sys.Date()`"
 format: 
   html:
     embed-resources: true
@@ -7,25 +9,36 @@ format:
 editor: visual
 editor_options: 
   chunk_output_type: console
+params:
+  seed: NULL    # default, will be overridden by render()
 ---
 
 ```{r, echo=FALSE}
 cacheData = F
 ```
 
-```{r}
+Required packages
+
+```{r, message=FALSE}
 library(RColorBrewer)
 library(dplyr)
 library(tidyr)
 library(ranger)
 library(stringr)
 library(heatmaply)
+library(usethis)
+library(fields)
 ```
 
+Script settings
 
 ```{r}
 set.seed(123)
-bootstrap = NULL
+bootstrap = params$seed
+bootstrap = 3
+chunkEval = is.null(bootstrap)
+resultsToSave = list()
+rangerTreads = 40
 ```
 
 # Data preparation
@@ -33,8 +46,7 @@ bootstrap = NULL
 ## Calculate tree metrics and align with model processes
 
 ```{r}
-source('code/analysis_functions.r')
-
+source('code/analysis_functions.R')
 
 #metricsForManyTrees(list.files("trees/uniform_sampling_experiment"),
 #                    treedir = "trees/uniform_sampling_experiment",
@@ -63,8 +75,7 @@ for (m in modelList) {
 }
 ```
 
-Join tree metrics to the aligned parameter-process dataframe: for analysis, use **processDFmetrics**
-Script for calculating tree metrics for trees that have not already been analyzed
+Join tree metrics to the aligned parameter-process dataframe: for analysis, use **processDFmetrics** Script for calculating tree metrics for trees that have not already been analyzed
 
 ```{r}
 # Read in existing output file
@@ -73,27 +84,30 @@ treeOutput = read.table('derived_tree_data/USE_treeStats.txt', sep = '\t', heade
 # Join process-parameter linkage dataframe to tree output
 allSimuData = left_join(processDF, treeOutput, by = c('model', 'simID'))
 
+# convert to factor
+allSimuData[sapply(allSimuData, is.character)] <- lapply(allSimuData[sapply(allSimuData, is.character)], 
+                                       as.factor)
+```
+
+
+```{r, eval = chunkEval}
 write.csv(allSimuData, 
           'derived_tree_data/process_parameter_values_and_tree_metrics_sign_corrected.csv', row.names = F)
 ```
 
-NOTE FLORIAN: seems a bit redundant to write and read again and there are minimal numeric differences and factor difference when using all.equal(allSimuData,allSimuData2) but I will leave it for the moment 
 
 ```{r}
-# Read in simulated tree data
-allSimuData <- read.csv("derived_tree_data/process_parameter_values_and_tree_metrics_sign_corrected.csv", stringsAsFactors = T)
-
 # For some reason there are 300 pontarp simulations with identical parameter sets:
 pweird = filter(allSimuData, model == "pontarp", env1 > .9, env1 < .95, 
                 dis1 > .09, dis1 < .095, com1 > .26, com1 < .27, 
                 nic1 > -.039, nic1 < -.021)
 ```
 
-## Selection of the data 
+## Selection of the data
 
-* filer out pweird
-* remove tree_height and crown_age as well as mntd and mpd which are redundant with mean_branch_length_ext and psv, respectively
-* exclude trees with fewer than 3 tips.
+-   filer out pweird
+-   remove tree_height and crown_age as well as mntd and mpd which are redundant with mean_branch_length_ext and psv, respectively
+-   exclude trees with fewer than 3 tips.
 
 PLUS: bootstrap if bootstrap is set
 
@@ -104,9 +118,7 @@ simuData = allSimuData %>%
          number_of_lineages >= 3) %>%
   dplyr::select(-tree_height, -crown_age, -mntd, -mpd)  
 } else {
-  
   set.seed(bootstrap)
-  
   simuData = allSimuData %>%
   filter(!(model == "pontarp" & simID %in% pweird$simID),
          number_of_lineages >= 3) %>%
@@ -117,10 +129,7 @@ simuData = allSimuData %>%
   slice_sample(prop = 1, replace = TRUE) %>% 
   ungroup()
 }
-
 ```
-
-
 
 ```{r}
 # Visualize correlation matrix of tree metrics
@@ -195,14 +204,13 @@ par(mar = c(8, 8, 10, 8))
 heatmaply(corrs2, colors = cool_warm)
 ```
 
-
 # Consistency analysis
 
 ## Calculating correlation coefficients
 
 Calculating individual correlation coefficients between all tree shape metrics and simulation processes.
 
-```{r, cache=cacheData}
+```{r correlation, cache=cacheData}
 # NOTE: Change next line to statisticsIndices2 to view the smaller subset of metrics not strongly correlated with richness
 statisticsIndices = statisticsIndices1
 statistics = colnames(simuData)[statisticsIndices]
@@ -251,6 +259,9 @@ for(i in 1:length(statisticsIndices)){
   }
 }
 
+
+resultsToSave$correlation$R2MatFull = R2MatFull
+resultsToSave$correlation$pMatFull = pMatFull
 ```
 
 ## Full plot
@@ -327,7 +338,6 @@ image.real3d <- function(mat, mat2, xCol = c("darkblue","blue", "lightblue", "gr
 } #end function
 ```
 
-
 Correlation plot highlighting metrics with strong correlation agreement
 
 Two versions, one with all metrics, and one only including one metric per correlated cluster.
@@ -354,7 +364,17 @@ alt.x.labels = dimnames(R2MatFull)[[1]]
 
 # Modifying a few model abbreviations here (e.g. am and pw)
 dimnames(R2MatFull)[[3]] = c("ca", "fh", "ge", "hs", "am", "pw", "ve", "xe")
+resultsToSave$Correlation$R2MatFull = R2MatFull
+resultsToSave$Correlation$pMatFull = pMatFull
+```
 
+boxes = F so that they can be plotted manually in larger blocks
+Run `plot(dend, edgePar = list(lwd=2))` and copy and paste dendrogram
+which must be both flipped horizontally and then rotated 90 deg to
+add to the right side of the all_metrics_correlations.pdf plot.
+Best if copied from window with wide x short dimensions.
+
+```{r, eval = chunkEval}
 pdf('figures/all_metric_correlations_boxes.pdf', height = 15, width = 13)
 par(mfrow = c(1,1), mar = c(4,15,3,3), oma = c(3, 0, 2, 0))
 
@@ -371,25 +391,15 @@ mtext("Models", 1, outer = TRUE, cex = 2.5, at = .53)
 #mtext("Metrics", 2, cex = 2.5, outer = TRUE, line = -3)
 mtext("Processes", 3, cex = 2.5, outer = TRUE, at = 0.53)
 dev.off()
-
-# boxes = F so that they can be plotted manually in larger blocks
-# Run `plot(dend, edgePar = list(lwd=2))` and copy and paste dendrogram
-# which must be both flipped horizontally and then rotated 90 deg to
-# add to the right side of the all_metrics_correlations.pdf plot.
-# Best if copied from window with wide x short dimensions.
 ```
 
 # Model inversion
-
-```{r}
-library(ranger)
-```
 
 ## Calculating RF and CV RF values
 
 Because simulation models differ substantially in the size of trees they typically produce, we run the random forests and conduct model inversions using only the tree metrics that are not strongly correlated with richness.
 
-```{r, cache=cacheData}
+```{r randomForest, cache=cacheData}
 
 # For all tree statistics, use statisticsIndices1, 
 # for tree statistics not strongly correlated with richness use statisticsIndices2
@@ -397,7 +407,7 @@ statisticsIndices = statisticsIndices1
 
 statistics2 = colnames(simuData)[statisticsIndices]
 
-predictability2 = array(dim = c(length(statistics2), 
+RFimportance = array(dim = c(length(statistics2), 
                                 length(predictors), 
                                 length(models)))
 
@@ -406,7 +416,7 @@ predictability2R2 = array(dim = c(length(predictors),
 rownames(predictability2R2) = predictors
 colnames(predictability2R2) = models
 predictabilityR2CV = predictability2R2
-models = as.list(predictabilityR2CV)
+rangerModels = purrr::array_tree(predictabilityR2CV)
 
 for(j in 1:length(predictorsIndices)){
   for(k in 1:length(models)){
@@ -416,22 +426,31 @@ for(j in 1:length(predictorsIndices)){
       form = as.formula(paste(predictors[j], "~ ."))
       x = ranger(form, data = tmp, 
                  importance = 'permutation',
-                scale.permutation.importance = T, num.trees = 5000)
-      predictability2[,j,k] = importance(x)     
+                scale.permutation.importance = T, 
+                num.trees = 5000,
+                num.threads = rangerTreads)
+      RFimportance[,j,k] = importance(x)     
       predictability2R2[j,k] = x$r.squared
+      rangerModels[[j]][[k]] = x
       
       cvindices = sample(1:5, size = nrow(tmp), replace = T)
       r2 = rep(NA, 5)
       for(i in 1:5){
-         x = ranger(form, data = tmp[cvindices != i, ], num.trees = 5000)
+         x = ranger(form, data = tmp[cvindices != i, ], 
+                    num.trees = 5000,
+                    num.threads = rangerTreads)
          xp = predict(x, data = tmp[cvindices == i,] )
          r2[i] = cor(tmp[cvindices == i, 1], xp$predictions)
-         models
       }
       predictabilityR2CV[j,k] = mean(r2)
     } 
   }
 }
+
+dimnames(RFimportance) = dimnames(R2MatFull)
+
+resultsToSave$predictability$predictabilityR2CV = predictabilityR2CV
+resultsToSave$predictability$importance = RFimportance
 ```
 
 ## Examining Variable Importance
@@ -450,9 +469,6 @@ RFimportancePlot <- function(mat, xCol = c( "gray94", "lightblue", "blue", "dark
   processPosition = data.frame(process = c('env', 'dis', 'nic', 'mut', 'com'),
                                xPos = c(0.6, 10.5, 20.5, 30.5, 40.5))
   
-  metricPosition = data.frame(metrics = rownames(mat)[metric.order], 
-                              yPos = seq(0.5, nrow(mat)-0.5, by = 1))
-  
   newMat = matrix(nrow = dim(mat)[1], ncol = 50)
   row.index = 0
   for(i in 1:dim(mat)[1]){   
@@ -465,7 +481,7 @@ RFimportancePlot <- function(mat, xCol = c( "gray94", "lightblue", "blue", "dark
   newMat <- t(newMat)
   xpos = rep(0:(dim(mat)[2]-1), each = dim(mat)[3])*10 + 1:dim(mat)[3] 
   ypos = 1:dim(mat)[1]
-  fields::image.plot(x = 1:50, y = 1:dim(mat)[1], z = newMat, axes = FALSE, zlim = range, 
+  fields::image.plot(x = 1:50, y = 1:dim(mat)[1], z = newMat, axes = FALSE, 
                      col = colorRampPalette(xCol)(30), xlab = "", ylab = "")
   
   abline(v = c(0,10,20,30,40,50) + 0.5)
@@ -480,19 +496,27 @@ RFimportancePlot <- function(mat, xCol = c( "gray94", "lightblue", "blue", "dark
   
 
 } #end function
-
-
-rownames(predictability2) = predictors
-colnames(predictability2) = models
-
-RFimportancePlot(predictability2)
 ```
+
+```{r, eval = chunkEval}
+pdf('figures/variableImportance.pdf', height = 15, width = 13)
+par(mfrow = c(1,1), mar = c(4,15,3,3), oma = c(3, 0, 2, 0))
+
+RFimportancePlot(RFimportance,
+                   cex.metrics = 1.4, cex.models = 1.3, cex.processes = 1.4,
+              lwd = 5, srt = 90)
+mtext("Models", 1, outer = TRUE, cex = 2.5, at = .53)
+#mtext("Metrics", 2, cex = 2.5, outer = TRUE, line = -3)
+mtext("Processes", 3, cex = 2.5, outer = TRUE, at = 0.53)
+dev.off()
+```
+
 
 ## Predictability within a model
 
 The internally calculated R2 values of a RF can sometimes be misleading. That's why we additionally calculated R2 values from a 5-fold CV in the calculation loop above. Results are very similar.
 
-```{r}
+```{r, eval = chunkEval}
 modelColors = data.frame(model = models,
                          newLabel = c('ca', 'fh', 'ge', 'hs', 'am', 'pw', 've', 'xe'),
                          color = c(rgb(0,0,0),
@@ -523,9 +547,9 @@ legend(0, 1, legend = modelColors$newLabel, fill = modelColors$color, ncol = 2, 
 
 ```
 
-## Between models
+## Figure predictability between models
 
-As a next step, we calculate predictability between models, i.e. we use the random forests tuned for one model to predict to the next model.
+As a next step, we calculate show between models, i.e. we use the random forests tuned for one model to predict to the next model.
 
 Cross-model predictability is measured by Kendall's rank correlation coefficient.
 
@@ -547,9 +571,12 @@ image.real <- function(mat, xCol = c("blue", "white", "white", "red"),
 
 # Function for plotting cross-model predictability
 
-crossPredictability = function(process, # env, dis, nic, mut, com
+# env, dis, nic, mut, com
+#if TRUE, includes S-correlated
+
+crossPredictability = function(process, 
                                num.trees = 5000, 
-                               allMetrics = FALSE, #if TRUE, includes S-correlated) {
+                               allMetrics = FALSE) {
   
   # Specify metrics to use in RF (i.e. include richness-correlated metrics or not)
   if (allMetrics) {
@@ -574,7 +601,9 @@ crossPredictability = function(process, # env, dis, nic, mut, com
       train = train[complete.cases(train),]
       if(nrow(train) > 0){
         form = as.formula(paste(predictors[processIndex], "~ ."))
-        x = ranger(form, data = train, num.trees = num.trees)
+        x = ranger(form, data = train, 
+                   num.trees = num.trees,
+                   num.threads = rangerTreads)
       } 
       for(j in 1:length(modelsTMP)){
         test = simuData[simuData$model == modelsTMP[j],
@@ -627,9 +656,10 @@ crossPredictabilityPlot = function(CpredictabilityR2,
     }
   }
 }
+```
 
 
-
+```{r, eval = chunkEval}
 # 2-panel figure showing cross-predictability for a) dispersal and b) speciation
 # This takes several minutes.
 
@@ -639,6 +669,9 @@ speciationCP = crossPredictability(process = 'mut', num.trees = 5000,
 dispersalCP = crossPredictability(process = 'dis', num.trees = 5000,
                                   allMetrics = TRUE)
 
+
+resultsToSave$crossPredictability$speciationCP = speciationCP
+resultsToSave$crossPredictability$dispersalCP = dispersalCP
 
 par(mfrow = c(1, 2), mar = c(6,7,4,4), mgp = c(3, 1, 0), oma = c(0, 0, 0, 1))
 
@@ -683,17 +716,18 @@ crossPredictabilityPlot(nicCP, cexLab = 2,
                     cexAxis = 1.8, cexValues = 1.3, cexMain = 2.5, cexLabSub = 1.5,
                     mainText = "Niche conservatism")
 mtext("c)", 2, at= 1.2, las = 1, cex = 2.5, line = 2)
-
 ```
 
-# Case studies
 
-## within each model
+# Case study
 
-Run random forests within each simulation model ito predict model parameter values from simulation-derived tree shape metrics. Then plug in empirical tree shape metrics to infer a process parameter value assuming that the tree arose from the processes represented by a particular simulation model.
+General idea: Fit random forests for each simulation model on the simulated data to predict model parameter values from simulation-derived tree shape metrics. Then, use empirical tree shape metrics to infer process parameter values based on the fitted RF for each of these models.
 
-```{r}
+Note that in this simulation, RF that were fit excluded all tree shape metrics correlated to tree size.
 
+## Generate predictions
+
+```{r caseStudy}
 # run a version of metricsForManyTrees() to get tree metric output for empirical sister clades (but that function assumes diff model ID naming convention, so had to manually tweak)
 allEmpiricalMetrics = read.table('derived_tree_data/empiricalSisterClades_treeStats.txt', header = T, sep = '\t')
 # Filter out hippo and primate clade pairs because of small size
@@ -716,7 +750,6 @@ predictedValues2 = data.frame(tree = character(),
                               predictor = character(),
                               value = numeric())
 
-predictability2 = array(dim = c(length(statistics2), length(predictors), length(models)))
 predictability2R2 = array(dim = c(length(predictors), length(models)))
 
 # For each combination of process (predictorsIndices) and simulation model, infer the strength of process for each empirical tree based on the RF
@@ -729,10 +762,11 @@ predictability2R2 = array(dim = c(length(predictors), length(models)))
       tmp = tmp[complete.cases(tmp),]
       if(nrow(tmp) > 0){
         form = as.formula(paste(predictors[j], "~ ."))
-        x = ranger(form, data = tmp, importance = 'permutation',
-                   scale.permutation.importance = T,
-                   num.trees = 5000)
+        x = ranger(form, data = tmp, 
+                   num.trees = 5000,
+                   num.threads = rangerTreads)
         predictions = predict(x, data = empMetrics2)
+        
       
         tmpPredictions = data.frame(tree = word(empiricalMetrics$tree, 1, sep = fixed('.')),
                                     model = rep(models[k], nrow(empMetrics2)),
@@ -798,9 +832,12 @@ predictedValues2$value[predictedValues2$model == 'ca' & predictedValues2$predict
 predictedValues2$value[predictedValues2$model %in% c('hs', 'xe') & predictedValues2$predictor %in% c('mut1', 'dis1')] = 
   log10(predictedValues2$value[predictedValues2$model %in% c('hs', 'xe') & predictedValues2$predictor %in% c('mut1', 'dis1')])
 
+```
 
-# Function for rescaling a value between the min and max such that the scaled value varies between 0 and 1.
-# If either the min or max are NA, Inf, or -Inf, returns NA
+Function for rescaling a value between the min and max such that the scaled value varies between 0 and 1.
+If either the min or max are NA, Inf, or -Inf, returns NA
+
+```{r}
 scaleFunction = function(value, min, max) {
   
   if (!min %in% c(-Inf, NA, Inf) & !max %in% c(-Inf, NA, Inf)) {
@@ -814,14 +851,38 @@ scaleFunction = function(value, min, max) {
   }
   return(scaledValue)
 }
+```
 
 
+```{r}
+scaledPredictions2 = predictedValues2 %>%
+  left_join(modelParamMinMax, by = c('model', 'predictor')) %>%
+  mutate(pair = str_extract(tree, "[1-9]"))
 
-# Function for plotting inferred process strengths of empirical sister clades,
-# as well as actual tree metric values for those clades.
-# --bottom panel illustrates relative magnitude of two metrics which were 
-#   identified as the metrics with consistent responses to specified process
+scaledPredictions2$clade = rep(c(1, 2), nrow(predictedValues2)/2)
 
+scaledPredictions2$scaledValue = apply(scaledPredictions2[, c('value', 'minVal', 'maxVal')], 1, 
+                             function(x) scaleFunction(value = x[1], min = x[2], max = x[3]))
+
+scaledPredictions2 = left_join(scaledPredictions2, modelColors, by = 'model')
+
+resultsToSave$casestudy$scaledPredictions2 = scaledPredictions2
+```
+
+
+```{r, eval = chunkEval}
+ write.csv(scaledPredictions2, 'derived_tree_data/scaled_predictions_empirical_trees.csv', row.names = F)
+```
+
+## Plots
+
+Function for plotting inferred process strengths of empirical sister clades,
+as well as actual tree metric values for those clades.
+bottom panel illustrates relative magnitude of two metrics which were 
+identified as the metrics with consistent responses to specified process
+
+
+```{r}
 empiricalModelInferencePlot = function(process, # env1, dis1, mut1, nic1, com1
                                        metric1, metric2=NULL, 
                                        met1label, met2label=NULL, 
@@ -955,30 +1016,13 @@ empiricalModelInferencePlot = function(process, # env1, dis1, mut1, nic1, com1
 } # end function
 
 
+```
 
+Plot of model inversion for dispersal across 6 empirical sister clade pairs
+-bottom panel illustrates relative magnitude of mntd and laplac_spectrum_p
+which were identified as the tree metrics with consistent responses to speciation
 
-scaledPredictions2 = predictedValues2 %>%
-  left_join(modelParamMinMax, by = c('model', 'predictor')) %>%
-  mutate(pair = str_extract(tree, "[1-9]"))
-
-scaledPredictions2$clade = rep(c(1, 2), nrow(predictedValues2)/2)
-
-scaledPredictions2$scaledValue = apply(scaledPredictions2[, c('value', 'minVal', 'maxVal')], 1, 
-                             function(x) scaleFunction(value = x[1], min = x[2], max = x[3]))
-
-scaledPredictions2 = left_join(scaledPredictions2, modelColors, by = 'model')
-
-write.csv(scaledPredictions2, 'derived_tree_data/scaled_predictions_empirical_trees.csv', row.names = F)
-
-
-
-
-
-
-# Plot of model inversion for dispersal across 6 empirical sister clade pairs
-# --bottom panel illustrates relative magnitude of mntd and laplac_spectrum_p
-# which were identified as the tree metrics with consistent responses to speciation
-
+```{r, eval = chunkEval}
 empiricalModelInferencePlot('mut1', metric1='mean_branch_length', 
                             metric2=NULL,
                               met1label = 'MBL', 
@@ -993,7 +1037,6 @@ empiricalModelInferencePlot('mut1', metric1='mean_branch_length',
                             lwd = 4, outer.margins = c(0, 4, 0, 0))
 
 
-
 #empiricalModelInferencePlot('mut1', metric1='mean_branch_length', 
 #                            metric2='laplac_spectrum_p',
 #                              met1label = 'MBL', met2label = 'LSP', 
@@ -1006,11 +1049,15 @@ empiricalModelInferencePlot('mut1', metric1='mean_branch_length',
 #                            line.quantile = 4, line.clade = 3, 
 #                            line.metrics = .9, cex.axis.quantiles = 1.75, 
 #                            lwd = 4, outer.margins = c(0, 4, 0, 0))
+```
 
-# Plot of model inversion for dispersal across 6 empirical sister clade pairs
-# --bottom panel illustrates relative magnitude of average_leaf_depth and j_one
-# which were identified as the tree metrics with consistent responses to dispersal
 
+Plot of model inversion for dispersal across 6 empirical sister clade pairs
+bottom panel illustrates relative magnitude of average_leaf_depth and j_one
+which were identified as the tree metrics with consistent responses to dispersal
+
+
+```{r, eval = chunkEval}
 empiricalModelInferencePlot('dis1', metric1='average_leaf_depth', metric2='j_one',
                               met1label = 'ALD', met2label = 'J_1', 
                              model.abbrev = F, legend = TRUE, cex.legend = 2, 
@@ -1019,13 +1066,13 @@ empiricalModelInferencePlot('dis1', metric1='average_leaf_depth', metric2='j_one
                              cex.quantiles = 1.5, cex.panel = 3, 
                              cex.axis = 1.75, bar.space = .35, 
                              cex.process = 1.7, line.process = 5, line.quantile = 4, line.clade = 3, line.metrics = .9, cex.axis.quantiles = 1.75, lwd = 4, outer.margins = c(0, 4, 0, 0))
-
 ```
 
-# Supplemental Figures
 
-```{r}
 
+## Supplemental Figures
+
+```{r, eval = chunkEval}
 # Switching out 2 model abbreviations
 simuData$model3 = simuData$model
 simuData$model3 = gsub("pontarp", "pw", simuData$model3)
@@ -1043,11 +1090,18 @@ for (i in statisticsIndices2) {
   axis(1, at = 1:8, labels = bp$names, las = 2, cex.axis = 1.4, tck = -0.01)
 }
 
-dev.off()
+dev.off()  
 ```
 
-# Reproducibility information
+# Reproducibility information and saving results
 
 ```{r}
 sessionInfo()
 ```
+
+```{r}
+bootstrap
+str(resultsToSave)
+save(resultsToSave, file = paste("bootstrap/results-", bootstrap, ".Rdata", sep = ""))
+```
+
