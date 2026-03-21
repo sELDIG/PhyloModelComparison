@@ -89,19 +89,13 @@ allSimuData[sapply(allSimuData, is.character)] <- lapply(allSimuData[sapply(allS
                                        as.factor)
 ```
 
+## write data
 
 ```{r, eval = chunkEval}
 write.csv(allSimuData, 
           'derived_tree_data/process_parameter_values_and_tree_metrics_sign_corrected.csv', row.names = F)
 ```
 
-
-```{r}
-# For some reason there are 300 pontarp simulations with identical parameter sets:
-pweird = filter(allSimuData, model == "pontarp", env1 > .9, env1 < .95, 
-                dis1 > .09, dis1 < .095, com1 > .26, com1 < .27, 
-                nic1 > -.039, nic1 < -.021)
-```
 
 ## Selection of the data
 
@@ -112,6 +106,11 @@ pweird = filter(allSimuData, model == "pontarp", env1 > .9, env1 < .95,
 PLUS: bootstrap if bootstrap is set
 
 ```{r}
+# For some reason there are 300 pontarp simulations with identical parameter sets:
+pweird = filter(allSimuData, model == "pontarp", env1 > .9, env1 < .95, 
+                dis1 > .09, dis1 < .095, com1 > .26, com1 < .27, 
+                nic1 > -.039, nic1 < -.021)
+
 if (is.null(bootstrap)){
 simuData = allSimuData %>%
   filter(!(model == "pontarp" & simID %in% pweird$simID),
@@ -119,7 +118,7 @@ simuData = allSimuData %>%
   dplyr::select(-tree_height, -crown_age, -mntd, -mpd)  
 } else {
   set.seed(bootstrap)
-  simuData = allSimuData %>%
+simuData = allSimuData %>%
   filter(!(model == "pontarp" & simID %in% pweird$simID),
          number_of_lineages >= 3) %>%
   dplyr::select(-tree_height, -crown_age, -mntd, -mpd) %>%
@@ -129,7 +128,11 @@ simuData = allSimuData %>%
   slice_sample(prop = 1, replace = TRUE) %>% 
   ungroup()
 }
+simuData = as.data.frame(simuData)
 ```
+
+
+# Clustering / redundancy analysis
 
 ```{r}
 # Visualize correlation matrix of tree metrics
@@ -160,8 +163,6 @@ modelAbbrevs = data.frame(original = c('ca', 'fh', 'gen', 'hs', 'la', 'pontarp',
 
 models = modelAbbrevs$original
 ```
-
-# Clustering / redundancy analysis
 
 The following code illustrates the pairwise correlations among tree shape metrics, first for all metrics, and second for just the set of metrics that are not strongly (r \> 0.9) correlated with species richness.
 
