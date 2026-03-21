@@ -18,7 +18,7 @@ cacheData = F
 If tree metrics have already been calculated on all simulated trees, you may skip this code chunk and begin with the **Read and Process Data** section.
 
 ```{r}
-source('code/analysis_functions.r')
+source('code/analysis_functions.R')
 
 #metricsForManyTrees(list.files("trees/uniform_sampling_experiment"),
 #                    treedir = "trees/uniform_sampling_experiment",
@@ -86,7 +86,7 @@ pweird = filter(allSimuData, model == "pontarp", env1 > .9, env1 < .95,
 # Also exclude trees with fewer than 3 tips.
 
 # Bootstrap iteration (value of 1:5)
-boot = 2
+boot = 3
 set.seed(boot)
 
 simuData = allSimuData %>%
