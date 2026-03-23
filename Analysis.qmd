@@ -521,6 +521,8 @@ Read in data
 ```{r}
 scaledPredictions2 = bootResults[[1]]$casestudy$scaledPredictions2
 
+empiricalMetrics = bootResults[[1]]$casestudy$empiricalMetrics
+
 #creating bootstrap matrices
 
 tmp = array(dim = c(nBoot, nrow(scaledPredictions2)))
