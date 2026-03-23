@@ -33,11 +33,11 @@ library(fields)
 Script settings
 
 ```{r}
-set.seed(123)
+set.seed(12345)
 bootstrap = params$seed
 chunkEval = is.null(bootstrap)
 resultsToSave = list()
-rangerTreads = 40
+rangerTreads = 4
 ```
 
 # Data preparation
@@ -173,7 +173,7 @@ metricNames = colnames(simuData)[statisticsIndices1]
 colnames(corrs) = metricNames
 rownames(corrs) = metricNames
 
-resultsToSave$correlation$corrs
+resultsToSave$correlation$corrs = corrs
 ```
 
 Get clustering order of metric names for Figure 2 based on absolute value of correlations
@@ -373,6 +373,9 @@ resultsToSave$consistency$R2MatFull = R2MatFull
 resultsToSave$consistency$pMatFull = pMatFull
 ```
 
+
+### Fig. 1
+
 boxes = F so that they can be plotted manually in larger blocks Run `plot(dend, edgePar = list(lwd=2))` and copy and paste dendrogram which must be both flipped horizontally and then rotated 90 deg to add to the right side of the all_metrics_correlations.pdf plot. Best if copied from window with wide x short dimensions.
 
 ```{r, eval = chunkEval}
@@ -531,7 +534,7 @@ modelColors = data.frame(model = models,
 
 
 ```{r, eval = chunkEval}
-pdf('figures/Fig.2-predictabilityWithin.pdf', height = 9, width = 14)
+pdf('figures/Fig.2-predictabilityWithin.pdf', height = 8, width = 14)
 
 par(mar = c(4, 6, 0, 0), mgp = c(4, 1, 0), mfrow = c(1,1))
 
@@ -667,11 +670,13 @@ crossPredictabilityPlot = function(CpredictabilityR2,
 }
 ```
 
+### Fig 3
+
 2-panel figure showing cross-predictability for a) dispersal and b) speciation
 This takes several minutes.
 
 ```{r, eval = chunkEval}
-pdf('figures/Fig.3-predictabilityBetween.pdf', height = 9, width = 14)
+pdf('figures/Fig.3-predictabilityBetween.pdf', height = 7, width = 14)
 
 speciationCP = crossPredictability(process = 'mut', num.trees = 5000, 
                                    allMetrics = TRUE)
@@ -699,10 +704,12 @@ dev.off()
 ```
 
 
+### Fig S3
+
 2-panel figure showing cross-predictability for a) environmental filtering and b) competition.
 This takes several minutes.
 
-```{r, eval = F}
+```{r, eval = chunkEval}
 pdf('figures/Fig.S3-predictabilityBetweenEnvComp.pdf', height = 14, width = 14)
 
 envCP = crossPredictability(process = 'env', num.trees = 5000, allMetrics = TRUE)
@@ -1021,11 +1028,13 @@ empiricalModelInferencePlot = function(process, # env1, dis1, mut1, nic1, com1
 
 ```
 
+### Fig 4
+
 Plot of model inversion for dispersal across 6 empirical sister clade pairs -bottom panel illustrates relative magnitude of mntd and laplac_spectrum_p which were identified as the tree metrics with consistent responses to speciation
 
 ```{r, eval = chunkEval}
 
-pdf('figures/Fig-4.pdf', height = 14, width = 10)
+pdf('figures/Fig.4.pdf', height = 14, width = 10)
 
 empiricalModelInferencePlot('mut1', metric1='mean_branch_length', 
                             metric2=NULL,
@@ -1081,7 +1090,7 @@ simuData$model3 = gsub("pontarp", "pw", simuData$model3)
 simuData$model3 = gsub("la", "am", simuData$model3)
 simuData$model3 = gsub("gen", "ge", simuData$model3)
 
-pdf('figures/metric_boxplots_across_models.pdf', height = 12, width = 10)
+pdf('figures/Fig.SX-metric_boxplots_across_models.pdf', height = 12, width = 10)
 par(mfrow = c(7, 5), mar = c(2.5, 2, 2, 1), mgp = c(2.5, .6, 0))
 
 bp1 = boxplot(log10(simuData$number_of_lineages) ~ simuData$model3, main = 'log # of lineages', col = modelColors$color[order(modelColors$newLabel)], xaxt = 'n', tck = -0.01, xlab = '', ylab = '', lwd = .1)
@@ -1103,6 +1112,7 @@ sessionInfo()
 
 ```{r}
 bootstrap
+if(is.null(bootstrap)) bootstrap = 0
 str(resultsToSave)
 save(resultsToSave, file = paste("bootstrap/results-", bootstrap, ".Rdata", sep = ""))
 ```
