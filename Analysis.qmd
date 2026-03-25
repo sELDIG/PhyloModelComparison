@@ -123,9 +123,7 @@ simuData = allSimuData %>%
 simuData = as.data.frame(simuData)
 ```
 
-
 ## Load simulation / bootstrap results
-
 
 ```{r}
 bootResults = list()
@@ -142,9 +140,7 @@ nBoot = length(files) - 1
 
 ```
 
-
 ### Case Study
-
 
 # Correlation of metrics
 
@@ -209,7 +205,7 @@ par(mar = c(8, 8, 10, 8))
 heatmaply(corrs, colors = cool_warm)
 ```
 
-The following code for automatic printout doesnt on my computer work unfortunately 
+The following code for automatic printout doesnt on my computer work unfortunately
 
 ```{r, eval = F}
 heatmaply(corrs, colors = cool_warm, file = 'figures/Fig.S1-MetricsCorrelation.pdf')
@@ -231,10 +227,9 @@ par(mar = c(8, 8, 10, 8))
 heatmaply(corrs2, colors = cool_warm)
 ```
 
-
 # Consistency analysis
 
-## Reading in calculations 
+## Reading in calculations
 
 ```{r}
 # loading original results
@@ -257,7 +252,7 @@ pMatFullBootSD <- apply(pMatFullBoot, c(2,3,4), sd )
 dimnames(R2MatFullBootSD) = dimnames(pMatFullBootSD) = dimnames(R2MatFull)
 ```
 
-## Fig. 1  Consistency
+## Fig. 1 Consistency
 
 Correlation plot highlighting metrics with strong correlation agreement
 
@@ -325,12 +320,11 @@ Because simulation models differ substantially in the size of trees they typical
 
 ## Fig. S3 - Variable Importance
 
-Reading in calculations 
+Reading in calculations
 
 ```{r}
 RFimportance = bootResults[[1]]$predictability$importance
 ```
-
 
 ```{r}
 pdf('figures/Fig.S3-VariableImportance.pdf', height = 15, width = 13)
@@ -347,7 +341,7 @@ dev.off()
 
 ## Fig. 2 - predictability within a model
 
-Reading in calculations 
+Reading in calculations
 
 ```{r}
 predictabilityR2CV = bootResults[[1]]$predictability$predictabilityR2CV
@@ -367,7 +361,6 @@ modelColors = data.frame(model = models,
                                    rgb(213/255, 94/255, 0),
                                    rgb(204/255, 121/255, 167/255)))
 ```
-
 
 ```{r}
 pdf('figures/Fig.2-predictabilityWithin.pdf', height = 8, width = 14)
@@ -392,12 +385,11 @@ legend(0, 1, legend = modelColors$newLabel, fill = modelColors$color, ncol = 2, 
 dev.off()
 ```
 
-
 ## Fig. 3 - predictability between models
 
 As a next step, we calculate show between models, i.e. we use the random forests tuned for one model to predict to the next model. Cross-model predictability is measured by Kendall's rank correlation coefficient. For the diagonal (within-model predictability), we use the CV predictability calculated in the previous step.
 
-Reading in calculations 
+Reading in calculations
 
 ```{r}
 speciationCP = bootResults[[1]]$crossPredictability$speciationCP
@@ -419,8 +411,7 @@ dimnames(speciationCPBootSD) = dimnames(speciationCP)
 dimnames(dispersalCPBootSD) = dimnames(dispersalCP)
 ```
 
-2-panel figure showing cross-predictability for a) dispersal and b) speciation
-This takes several minutes.
+2-panel figure showing cross-predictability for a) dispersal and b) speciation This takes several minutes.
 
 ```{r}
 
@@ -442,9 +433,7 @@ mtext("b)", 2, at = 1.2, las = 1, cex = 2.5, line = 2)
 dev.off()
 ```
 
-
 ## Fig S4 - Bootstrap uncertainty
-
 
 ```{r}
 pdf('figures/Fig.S4-predictabilityBetween-Boot.pdf', height = 7, width = 14)
@@ -471,19 +460,15 @@ mtext("a)", 2, at= 1.2, las = 1, cex = 2.5, line = 2)
 dev.off()
 ```
 
-
 ## Fig S5
 
-2-panel figure showing cross-predictability for a) environmental filtering and b) competition.
-This takes several minutes.
+2-panel figure showing cross-predictability for a) environmental filtering and b) competition. This takes several minutes.
 
 ```{r}
 envCP = bootResults[[1]]$crossPredictability$envCP
 comCP = bootResults[[1]]$crossPredictability$comCP
 nicCP = bootResults[[1]]$crossPredictability$nicCP
 ```
-
-
 
 ```{r}
 pdf('figures/Fig.S3-predictabilityBetweenEnvComp.pdf', height = 14, width = 14)
@@ -514,7 +499,7 @@ General idea: Fit random forests for each simulation model on the simulated data
 
 Note that in this simulation, RF that were fit excluded all tree shape metrics correlated to tree size.
 
-## Fig. 4 
+## Fig. 4
 
 Read in data
 
@@ -564,7 +549,9 @@ empiricalModelInferencePlot = function(process, # env1, dis1, mut1, nic1, com1
                                        model.abbrev = TRUE,
                                        panel.margins = c(6, 5, 1, 1),
                                        outer.margins = c(0, 3, 0, 0),
-                                       bar.space = .1) {
+                                       bar.space = .1,
+                                       errorBars = FALSE,
+                                       lwdErrorBars = 2) {
   
   par(mfrow = c(2, 3), mar = panel.margins, oma = outer.margins)
   
@@ -596,6 +583,15 @@ empiricalModelInferencePlot = function(process, # env1, dis1, mut1, nic1, com1
       
       points(tmp$clade[tmp$model==m], tmp$scaledValue[tmp$model==m], type = 'b',
              col = tmp$color[tmp$model==m], lwd = lwd)
+      
+      if(errorBars) {
+        segments(tmp$clade[tmp$model==m], tmp$scaledValue[tmp$model==m] - 
+                   tmp$scaledValueSD[tmp$model==m],
+                 tmp$clade[tmp$model==m], tmp$scaledValue[tmp$model==m] + 
+                   tmp$scaledValueSD[tmp$model==m],
+                 col = tmp$color[tmp$model==m],
+                 lwd = lwdErrorBars)
+      }
       
       if (model.abbrev) {
         text(2.1, tmp$scaledValue[tmp$model==m & tmp$clade == 2],
@@ -672,7 +668,6 @@ empiricalModelInferencePlot = function(process, # env1, dis1, mut1, nic1, com1
   
 } # end function
 ```
-
 
 Plot of model inversion for dispersal across 6 empirical sister clade pairs -bottom panel illustrates relative magnitude of mntd and laplac_spectrum_p which were identified as the tree metrics with consistent responses to speciation
 
