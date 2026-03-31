@@ -673,7 +673,7 @@ Plot of model inversion for dispersal across 6 empirical sister clade pairs -bot
 
 ```{r}
 
-pdf('figures/Fig.4.pdf', height = 14, width = 10)
+pdf('figures/Fig.4.pdf', height = 8.5, width = 14)
 
 empiricalModelInferencePlot('mut1', metric1='mean_branch_length', 
                             metric2=NULL,
@@ -686,7 +686,8 @@ empiricalModelInferencePlot('mut1', metric1='mean_branch_length',
                              cex.process = 1.7, line.process = 5, 
                             line.quantile = 4, line.clade = 1.5, 
                             line.metrics = .9, cex.axis.quantiles = 1.75, 
-                            lwd = 4, outer.margins = c(0, 4, 0, 0))
+                            lwd = 4, outer.margins = c(0, 4, 0, 0),
+                            errorBars = TRUE)
 
 dev.off()
 
