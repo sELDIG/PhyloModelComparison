@@ -243,6 +243,12 @@ agreement = numSigAgreements[(numAgreements[,1] >= 5 & numSigAgreements[,1] >= 5
                             (numAgreements[,5] >= 6 & numSigAgreements[,5] >= 6),]
 
 
+agreement2 = numSigAgreements[(numAgreements[,1] >= 5 ) |
+                            (numAgreements[,2] >= 7 ) | 
+                            (numAgreements[,3] >= 4 ) | 
+                            (numAgreements[,4] >=7 ) | 
+                            (numAgreements[,5] >= 6),]
+
 ```
 
 ### Saving Results
@@ -252,6 +258,8 @@ resultsToSave$consistency$R2MatFull = R2MatFull
 resultsToSave$consistency$pMatFull = pMatFull
 
 resultsToSave$consistency$agreement = agreement
+resultsToSave$consistency$agreement2 = agreement2
+
 resultsToSave$consistency$numAgreements = numAgreements
 resultsToSave$consistency$numSigAgreements = numSigAgreements
 resultsToSave$consistency$meanCorr = meanCorr
@@ -262,12 +270,13 @@ resultsToSave$consistency$medianCorr = medianCorr
 
 ## Calculate within-model predictability
 
-Because simulation models differ substantially in the size of trees they typically produce, we run the random forests and conduct model inversions using only the tree metrics that are not strongly correlated with richness.
+We calculate within-model predictabilty on all metrics. In the script below
+
+-   For all tree statistics, use statisticsIndices1
+
+-   for tree statistics not strongly correlated with richness use statisticsIndices2
 
 ```{r randomForest, cache=cacheData}
-
-# For all tree statistics, use statisticsIndices1, 
-# for tree statistics not strongly correlated with richness use statisticsIndices2
 statisticsIndices = statisticsIndices1
 
 statistics2 = colnames(simuData)[statisticsIndices]
@@ -323,6 +332,8 @@ resultsToSave$predictability$importance = RFimportance
 ```
 
 ## Predictability between models
+
+Because simulation models differ substantially in the size of trees they typically produce, we run the random forests and conduct model inversions using only the tree metrics that are not strongly correlated with richness.
 
 ```{r}
 # env, dis, nic, mut, com
@@ -413,13 +424,12 @@ crossPredictabilityPlot = function(CpredictabilityR2,
 ```
 
 ```{r}
-speciationCP = crossPredictability(process = 'mut', num.trees = 5000, allMetrics = TRUE)
+speciationCP = crossPredictability(process = 'mut', num.trees = 5000, allMetrics = F)
+dispersalCP = crossPredictability(process = 'dis', num.trees = 5000, allMetrics = F)
 
-dispersalCP = crossPredictability(process = 'dis', num.trees = 5000, allMetrics = TRUE)
-
-envCP = crossPredictability(process = 'env', num.trees = 5000, allMetrics = TRUE)
-comCP = crossPredictability(process = 'com', num.trees = 5000, allMetrics = TRUE)
-nicCP = crossPredictability(process = 'nic', num.trees = 5000, allMetrics = TRUE)
+envCP = crossPredictability(process = 'env', num.trees = 5000, allMetrics = F)
+comCP = crossPredictability(process = 'com', num.trees = 5000, allMetrics = F)
+nicCP = crossPredictability(process = 'nic', num.trees = 5000, allMetrics = F)
 ```
 
 ### Saving Results
