@@ -3,10 +3,14 @@ modelMetricDivergent <- function(mat, mat2, xCol = c("darkblue","blue", "lightbl
                          y.labels = dimnames(mat)[[2]], alpha = .01, cex.metrics = 0.5, 
                          cex.models = 0.7, cex.processes = 1,
                          cex.asterisk = 1,
-                         boxes = FALSE, #draw a highlight box around consistent responses
+                         boxes = FALSE, #draw a highlight box around strictly consistent responses (based on sign and p)
+                         boxes2 = FALSE, #draw a dashed box around loosely consistent responses (based only on sign)
                          boxProcesses, #vector of processes to highlight (of same length as boxMetrics, and processes can be repeated to highlight diff metrics)
                          boxMetrics, #vector of metrics to highlight (of same length as boxProcesses, and metrics can be repeated to highlight diff processes)
+                         boxProcesses2, #vector of processes to highlight (of same length as boxMetrics2, and processes can be repeated to highlight diff metrics)
+                         boxMetrics2, #vector of metrics to highlight (of same length as boxProcesses2, and metrics can be repeated to highlight diff processes)
                          lwd = 4,
+                         lty2 = 'dotted', #line type for boxes2
                          srt = 60, 
                          metric.order = 1:dim(mat)[1] #default is to list metrics in the order they appear in the columns of simuData, but can optionally pass an alternative order, e.g., that derived from the metric-correlation clustering
 )
@@ -53,6 +57,17 @@ modelMetricDivergent <- function(mat, mat2, xCol = c("darkblue","blue", "lightbl
     }
   } # end * loop
   
+  # Less restrictive (sign only) agreement shown with dashed boxes
+  if(boxes2) {
+    for (b in 1:length(boxProcesses2)) {
+      rect(processPosition$xPos[processPosition$process == boxProcesses2[b]],
+           metricPosition$yPos[metricPosition$metric == boxMetrics2[b]],
+           processPosition$xPos[processPosition$process == boxProcesses2[b]] + 8,
+           metricPosition$yPos[metricPosition$metric == boxMetrics2[b]] + .95,
+           lwd = lwd, lty = lty2)
+    } # end box loop
+  } # end box if
+  
   if(boxes) {
     for (b in 1:length(boxProcesses)) {
       rect(processPosition$xPos[processPosition$process == boxProcesses[b]],
@@ -63,6 +78,7 @@ modelMetricDivergent <- function(mat, mat2, xCol = c("darkblue","blue", "lightbl
       
     } # end box loop
   } # end box if
+  
   
 } #end function
 
