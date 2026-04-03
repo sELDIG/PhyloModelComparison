@@ -267,6 +267,13 @@ nic.metrics = rownames(agreement)[agreement[,3] >= 4]
 mut.metrics = rownames(agreement)[agreement[,4] >= 7]
 com.metrics = rownames(agreement)[agreement[,5] >= 6]
 
+
+env.metrics2 = rownames(agreement2)[agreement2[,1] >= 5]
+dis.metrics2 = rownames(agreement2)[agreement2[,2] >= 7]
+nic.metrics2 = rownames(agreement2)[agreement2[,3] >= 4]
+mut.metrics2 = rownames(agreement2)[agreement2[,4] >= 7]
+com.metrics2 = rownames(agreement2)[agreement2[,5] >= 6]
+
 # Correlation plot with ALL tree metrics for supplement
 
 # Tidier labels
@@ -291,7 +298,13 @@ modelMetricDivergent(R2MatFull, pMatFull, x.labels = alt.x.labels, y.labels = c(
                                          rep('dis', length(dis.metrics)),
                                          rep('mut', length(mut.metrics))), 
              boxMetrics = c(env.metrics, dis.metrics, mut.metrics), 
-             lwd = 5, srt = 90, cex.asterisk = 2, metric.order = dend.order)
+             boxes2 = T, 
+             boxProcesses2 = c(rep('env', length(env.metrics2)),
+                                         rep('dis', length(dis.metrics2)),
+                                         rep('mut', length(mut.metrics2))), 
+             boxMetrics2 = c(env.metrics2, dis.metrics2, mut.metrics2), 
+             lwd = 5, srt = 90, cex.asterisk = 2, metric.order = dend.order,
+             lty2 = '42') # dash length 4, gap length 2
 
 mtext("Models", 1, outer = TRUE, cex = 2.5, at = .53)
 #mtext("Metrics", 2, cex = 2.5, outer = TRUE, line = -3)
