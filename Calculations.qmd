@@ -165,7 +165,7 @@ models = modelAbbrevs$original
 ```
 
 ```{r}
-corrs = cor(simuData[, statisticsIndices1], use = "pairwise.complete.obs", )
+corrs = cor(simuData[, statisticsIndices1], use = "pairwise.complete.obs")
 
 metricNames = colnames(simuData)[statisticsIndices1]
 
@@ -236,14 +236,15 @@ for(i in 1:length(statisticsIndices)){
 ```
 
 ```{r}
+# strict measure of agreement where all models show the same sign and p < alpha for each
 agreement = numSigAgreements[(numAgreements[,1] >= 5 & numSigAgreements[,1] >= 5) |
                             (numAgreements[,2] >= 7 & numSigAgreements[,2] >= 7) | 
                             (numAgreements[,3] >= 4 & numSigAgreements[,3] >= 4) | 
                             (numAgreements[,4] >=7 & numSigAgreements[,4] >=7) | 
                             (numAgreements[,5] >= 6 & numSigAgreements[,5] >= 6),]
 
-
-agreement2 = numSigAgreements[(numAgreements[,1] >= 5 ) |
+# less strict where all models show the same sign regardless of p
+agreement2 = numAgreements[(numAgreements[,1] >= 5 ) |
                             (numAgreements[,2] >= 7 ) | 
                             (numAgreements[,3] >= 4 ) | 
                             (numAgreements[,4] >=7 ) | 
