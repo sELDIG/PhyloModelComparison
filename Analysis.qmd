@@ -1,5 +1,7 @@
 ---
 title: "Analysis"
+author: "Allen Hulbert, Florian Hartig"
+date: "`r Sys.Date()`"
 format: 
   html:
     embed-resources: true
@@ -7,16 +9,44 @@ format:
 editor: visual
 editor_options: 
   chunk_output_type: console
+params:
+  seed: NULL    # default, will be overridden by render()
 ---
 
 ```{r, echo=FALSE}
 cacheData = F
 ```
 
-# Calculate tree metrics and align with model processes
+Required packages
+
+```{r, message=FALSE}
+library(RColorBrewer)
+library(dplyr)
+library(tidyr)
+library(ranger)
+library(stringr)
+library(heatmaply)
+library(usethis)
+library(fields)
+```
+
+Script settings
 
 ```{r}
-source('code/analysis_functions.r')
+set.seed(12345)
+bootstrap = params$seed
+chunkEval = is.null(bootstrap)
+resultsToSave = list()
+rangerTreads = 4
+```
+
+# Data preparation
+
+## Calculate tree metrics and align with model processes
+
+```{r}
+source('code/analysis_functions.R')
+source('code/plot_functions.R')
 
 #metricsForManyTrees(list.files("trees/uniform_sampling_experiment"),
 #                    treedir = "trees/uniform_sampling_experiment",
@@ -43,50 +73,80 @@ for (m in modelList) {
   }
   
 }
+```
 
-# Join tree metrics to the aligned parameter-process dataframe: for analysis, use **processDFmetrics**
-# Script for calculating tree metrics for trees that have not already been analyzed
+Join tree metrics to the aligned parameter-process dataframe: for analysis, use **processDFmetrics** Script for calculating tree metrics for trees that have not already been analyzed
 
+```{r}
 # Read in existing output file
 treeOutput = read.table('derived_tree_data/USE_treeStats.txt', sep = '\t', header = T)
 
 # Join process-parameter linkage dataframe to tree output
 allSimuData = left_join(processDF, treeOutput, by = c('model', 'simID'))
 
-write.csv(allSimuData, 
-          'derived_tree_data/process_parameter_values_and_tree_metrics_sign_corrected.csv', row.names = F)
-
-
+# convert to factor
+allSimuData[sapply(allSimuData, is.character)] <- lapply(allSimuData[sapply(allSimuData, is.character)], 
+                                       as.factor)
 ```
 
-# Read and process data
+## Selection of the data
+
+-   filter out pweird
+-   remove tree_height and crown_age as well as mntd and mpd which are redundant with mean_branch_length_ext and psv, respectively
+-   exclude trees with fewer than 3 tips.
+
+PLUS: bootstrap if bootstrap is set
 
 ```{r}
-library(RColorBrewer)
-library(dplyr)
-library(tidyr)
-library(ranger)
-library(stringr)
-library(heatmaply)
-
-# Read in simulated tree data
-allSimuData <- read.csv("derived_tree_data/process_parameter_values_and_tree_metrics_sign_corrected.csv", stringsAsFactors = T)
-
 # For some reason there are 300 pontarp simulations with identical parameter sets:
 pweird = filter(allSimuData, model == "pontarp", env1 > .9, env1 < .95, 
                 dis1 > .09, dis1 < .095, com1 > .26, com1 < .27, 
                 nic1 > -.039, nic1 < -.021)
 
-# Filter those out, and remove tree_height and crown_age
-#   as well as mntd and mpd which are redundant with mean_branch_length_ext 
-#   and psv, respectively
-
-# Also exclude trees with fewer than 3 tips.
+if (is.null(bootstrap)){
 simuData = allSimuData %>%
   filter(!(model == "pontarp" & simID %in% pweird$simID),
          number_of_lineages >= 3) %>%
-  dplyr::select(-tree_height, -crown_age, -mntd, -mpd)
+  dplyr::select(-tree_height, -crown_age, -mntd, -mpd)  
+} else {
+  set.seed(bootstrap)
+simuData = allSimuData %>%
+  filter(!(model == "pontarp" & simID %in% pweird$simID),
+         number_of_lineages >= 3) %>%
+  dplyr::select(-tree_height, -crown_age, -mntd, -mpd) %>%
+  group_by(model) %>%
+  # Bootstrapping here, resampling the simulations with replacement,
+  # prop is the proportion of group to resample (i.e. entire group)
+  slice_sample(prop = 1, replace = TRUE) %>% 
+  ungroup()
+}
+simuData = as.data.frame(simuData)
+```
 
+## Load simulation / bootstrap results
+
+```{r}
+bootResults = list()
+
+files = list.files(path = "./bootstrap/", pattern = "*.Rdata") 
+
+for (i in 1:length(files)) {
+  load(file = paste("./bootstrap/", files[i], sep = ""))
+  bootResults[[i]] = resultsToSave
+}
+
+nBoot = length(files) - 1
+
+
+```
+
+### Case Study
+
+# Correlation of metrics
+
+The following code illustrates the pairwise correlations among tree shape metrics, first for all metrics, and second for just the set of metrics that are not strongly (r \> 0.9) correlated with species richness.
+
+```{r}
 # Visualize correlation matrix of tree metrics
 metricCors = cor(simuData[, 24:ncol(simuData)], use = "pairwise.complete.obs")
 
@@ -114,16 +174,11 @@ modelAbbrevs = data.frame(original = c('ca', 'fh', 'gen', 'hs', 'la', 'pontarp',
                     com = c(TRUE, TRUE, TRUE, FALSE, TRUE, TRUE, FALSE, TRUE))
 
 models = modelAbbrevs$original
-
-
 ```
 
-# Clustering / redundancy analysis
-
-The following code illustrates the pairwise correlations among tree shape metrics, first for all metrics, and second for just the set of metrics that are not strongly (r \> 0.9) correlated with species richness.
+## Plot correlation of all metrics (Fig. S1)
 
 ```{r}
-# Correlation among indices
 corrs = cor(simuData[, statisticsIndices1], use = "pairwise.complete.obs", )
 
 metricNames = colnames(simuData)[statisticsIndices1]
@@ -131,177 +186,81 @@ metricNames = colnames(simuData)[statisticsIndices1]
 colnames(corrs) = metricNames
 rownames(corrs) = metricNames
 
-par(mar = c(8, 8, 10, 8))
-heatmaply(corrs, colors = cool_warm)
+resultsToSave$correlation$corrs = corrs
+```
 
-# Get clustering order of metric names for Figure 2 based on absolute value of correlations
+Get clustering order of metric names for Figure 2 based on absolute value of correlations
+
+```{r}
+
 dissim = 1 - abs(corrs)
 distances = as.dist(dissim)
 hc = hclust(distances)
 dend = as.dendrogram(hc)
 dend.order = order.dendrogram(dend)
+```
 
+```{r, fig.height= 10, fig.width=10}
+par(mar = c(8, 8, 10, 8))
+heatmaply(corrs, colors = cool_warm)
+```
 
+The following code for automatic printout doesnt on my computer work unfortunately
 
-# For metrics not strongly correlated with richness
+```{r, eval = F}
+heatmaply(corrs, colors = cool_warm, file = 'figures/Fig.S1-MetricsCorrelation.pdf')
+```
+
+## Plot correlation of metrics not strongly correlated with richness
+
+```{r}
 corrs2 = cor(simuData[, statisticsIndices2], use = "pairwise.complete.obs", )
 
 metricNames2 = colnames(simuData)[statisticsIndices2]
 
 colnames(corrs2) = metricNames2
 rownames(corrs2) = metricNames2
+```
 
+```{r, fig.height= 10, fig.width=10}
 par(mar = c(8, 8, 10, 8))
 heatmaply(corrs2, colors = cool_warm)
-
 ```
 
 # Consistency analysis
 
-## Calculating correlation coefficients
-
-Calculating individual correlation coefficients between all tree shape metrics and simulation processes.
-
-```{r, cache=cacheData}
-# NOTE: Change next line to statisticsIndices2 to view the smaller subset of metrics not strongly correlated with richness
-statisticsIndices = statisticsIndices1
-statistics = colnames(simuData)[statisticsIndices]
-nStats = length(statisticsIndices)
-
-numAgreements = matrix(nrow = length(statistics), 
-                 ncol = length(predictors),
-                 dimnames = list(statistics, predictors))
-
-numSigAgreements = meanCorr = medianCorr = numAgreements
-
-R2MatFull = pMatFull = array(
-    dim = c(length(statistics), length(predictors), length(models)),
-    dimnames = list(statistics, predictors, models)) 
-
-alpha = 0.01 # threshold for counting "significant" correlations
-
-for(i in 1:length(statisticsIndices)){
-  for(j in 1:length(predictorsIndices)){
-    R2 = pvalues = sign = rep(NA, length(models))
-    for(k in 1:length(models)){
-      tmp = simuData[simuData$model == models[k],]
-      x = scale(tmp[,statisticsIndices[i]])
-      y = tmp[,predictorsIndices[j]]
-      if(! all(is.na(y))){
-      
-        corRes = cor.test(x,y, method = "kendall")
-        
-        R2[k] = corRes$estimate
-        pvalues[k] = corRes$p.value
-        sign[k] = sign(corRes$estimate)
-
-      } else{
-        R2[k] = NA
-        pvalues[k] = NA
-        sign[k] = NA
-      }
-    }
-    R2MatFull[i,j,] = R2
-    pMatFull[i,j,] = pvalues
-    numAgreements[i,j] = max(sum(sign == 1, na.rm = T), sum(sign == -1, na.rm = T))
-    numSigAgreements[i,j] = max(sum(sign[pvalues <= alpha] == 1, na.rm = T), 
-                      sum(sign[pvalues <= alpha] == -1, na.rm = T))
-    meanCorr[i,j] = mean(R2, na.rm = T)
-    medianCorr[i,j] = median(R2, na.rm = T)
-  }
-}
-
-```
-
-## Full plot
-
-Plotting metric-process correlations across all models, metrics, and processes.
+## Reading in calculations
 
 ```{r}
-image.real3d <- function(mat, mat2, xCol = c("darkblue","blue", "lightblue", "gray94", "pink","red", "darkred"), 
-                       range = c(-1,1), x.labels = dimnames(mat)[[1]],      
-                       y.labels = dimnames(mat)[[2]], alpha = .01, cex.metrics = 0.5, 
-                       cex.models = 0.7, cex.processes = 1,
-                       cex.asterisk = 1,
-                       boxes = FALSE, #draw a highlight box around consistent responses
-                       boxProcesses, #vector of processes to highlight (of same length as boxMetrics, and processes can be repeated to highlight diff metrics)
-                       boxMetrics, #vector of metrics to highlight (of same length as boxProcesses, and metrics can be repeated to highlight diff processes)
-                       lwd = 4,
-                       srt = 60, 
-                       metric.order = 1:dim(mat)[1] #default is to list metrics in the order they appear in the columns of simuData, but can optionally pass an alternative order, e.g., that derived from the metric-correlation clustering
-                       )
-  { 
-  
-  processPosition = data.frame(process = c('env', 'dis', 'nic', 'mut', 'com'),
-                               xPos = c(0.6, 10.5, 20.5, 30.5, 40.5))
-  
-  metricPosition = data.frame(metrics = rownames(mat)[metric.order], 
-                              yPos = seq(0.5, nrow(mat)-0.5, by = 1))
-  
-  newMat = matrix(nrow = dim(mat)[1], ncol = 50)
-  row.index = 0
-  for(i in 1:dim(mat)[1]){   
-    row.index = row.index + 1
-    for(k in 1:dim(mat)[2]) {
-      newMat[i,(1+(k-1)*10):((k-1)*10 + dim(mat)[3])] = mat[dend.order[row.index],k,]
-    }
-  }
-  
-  newMat <- t(newMat)
-  xpos = rep(0:(dim(mat)[2]-1), each = dim(mat)[3])*10 + 1:dim(mat)[3] 
-  ypos = 1:dim(mat)[1]
-  fields::image.plot(x = 1:50, y = 1:dim(mat)[1], z = newMat, axes = FALSE, zlim = range, 
-                     col = colorRampPalette(xCol)(30), xlab = "", ylab = "")
-  
-  abline(v = c(0,10,20,30,40,50) + 0.5)
-  abline(v = c(0,10,20,30,40,50) - 1.5)
-  abline(h = c(1:(dim(mat)[1] +1)) + 0.5)
-  axis(2, at = ypos, labels = x.labels[metric.order], las = 2, cex.axis = cex.metrics)
-  axis(3, at = seq(5, 45, by = 10), labels = y.labels, cex.axis = cex.processes, las = 1)
-  axis(1, at = xpos, labels = F, tck = -0.01)
-  box() 
-  
-  text(x = xpos, y = 0, srt = srt, adj = 1, xpd = TRUE, labels = rep(dimnames(mat)[[3]], 5), cex = cex.models)
-  
-  # Add *s where correlation's p is below alpha
-  for(i in 1:dim(mat2)[1]){     
-    for(k in 1:dim(mat2)[2]){
-       for(j in 1:dim(mat2)[3])
-        if(!is.na(mat2[i,k,j]) & mat2[i,k,j] < alpha){
-          text(x = 10*(k-1) +j,  y = (1:dim(mat2)[1])[metricPosition$metrics == x.labels[i]], labels = "*", cex = cex.asterisk )
-      }
-    }
-  } # end * loop
-  
-  if(boxes) {
-    for (b in 1:length(boxProcesses)) {
-      rect(processPosition$xPos[processPosition$process == boxProcesses[b]],
-           metricPosition$yPos[metricPosition$metric == boxMetrics[b]],
-           processPosition$xPos[processPosition$process == boxProcesses[b]] + 8,
-           metricPosition$yPos[metricPosition$metric == boxMetrics[b]] + .95,
-           lwd = lwd)
-      
-    } # end box loop
-  } # end box if
-  
-} #end function
+# loading original results
+R2MatFull = bootResults[[1]]$consistency$R2MatFull
+pMatFull = bootResults[[1]]$consistency$pMatFull
+agreement = bootResults[[1]]$consistency$agreement
+
+#creating bootstrap matrices
+R2MatFullBoot = pMatFullBoot = array(dim = c(nBoot, dim(R2MatFull)))
+
+# writing results in matrices
+for (i in 2:length(files)) {
+  R2MatFullBoot[i-1, , ,] = bootResults[[i]]$consistency$R2MatFull
+  pMatFullBoot[i-1, , ,] = bootResults[[i]]$consistency$pMatFull  
+} 
+
+R2MatFullBootSD <- apply(R2MatFullBoot, c(2,3,4), sd )
+pMatFullBootSD <- apply(pMatFullBoot, c(2,3,4), sd )
+
+dimnames(R2MatFullBootSD) = dimnames(pMatFullBootSD) = dimnames(R2MatFull)
 ```
 
+## Fig. 1 Consistency
+
+Correlation plot highlighting metrics with strong correlation agreement
+
+Two versions, one with all metrics, and one only including one metric per correlated cluster.
+
+Eg, mntd is strongly correlated with mean_branch_length_ext and mean_branch_length_ext, so only one is chosen to be included in the plot based on which is likely to be more familiar or intuitive to readers.
+
 ```{r}
-# Correlation plot highlighting metrics with strong correlation agreement
-
-# Two versions, one with all metrics, and one
-# only including one metric per correlated cluster.
-# Eg, mntd is strongly correlated with mean_branch_length_ext and
-# mean_branch_length_ext, so only one is chosen to be included in the plot
-# based on which is likely to be more familiar or intuitive to readers.
-
-agreement = numSigAgreements[(numAgreements[,1] >= 5 & numSigAgreements[,1] >= 5) |
-                            (numAgreements[,2] >= 7 & numSigAgreements[,2] >= 7) | 
-                            (numAgreements[,3] >= 4 & numSigAgreements[,3] >= 4) | 
-                            (numAgreements[,4] >=7 & numSigAgreements[,4] >=7) | 
-                            (numAgreements[,5] >= 6 & numSigAgreements[,5] >= 6),]
-
 env.metrics = rownames(agreement)[agreement[,1] >= 5]
 dis.metrics = rownames(agreement)[agreement[,2] >= 7]
 nic.metrics = rownames(agreement)[agreement[,3] >= 4]
@@ -309,6 +268,11 @@ mut.metrics = rownames(agreement)[agreement[,4] >= 7]
 com.metrics = rownames(agreement)[agreement[,5] >= 6]
 
 
+env.metrics2 = rownames(agreement2)[agreement2[,1] >= 5]
+dis.metrics2 = rownames(agreement2)[agreement2[,2] >= 7]
+nic.metrics2 = rownames(agreement2)[agreement2[,3] >= 4]
+mut.metrics2 = rownames(agreement2)[agreement2[,4] >= 7]
+com.metrics2 = rownames(agreement2)[agreement2[,5] >= 6]
 
 # Correlation plot with ALL tree metrics for supplement
 
@@ -317,141 +281,89 @@ alt.x.labels = dimnames(R2MatFull)[[1]]
 
 # Modifying a few model abbreviations here (e.g. am and pw)
 dimnames(R2MatFull)[[3]] = c("ca", "fh", "ge", "hs", "am", "pw", "ve", "xe")
+resultsToSave$consistency$R2MatFull = R2MatFull
+resultsToSave$consistency$pMatFull = pMatFull
+```
 
-pdf('figures/all_metric_correlations_boxes.pdf', height = 15, width = 13)
+boxes = F so that they can be plotted manually in larger blocks Run `plot(dend, edgePar = list(lwd=2))` and copy and paste dendrogram which must be both flipped horizontally and then rotated 90 deg to add to the right side of the all_metrics_correlations.pdf plot. Best if copied from window with wide x short dimensions.
+
+```{r}
+pdf('figures/Fig.1-Consistency.pdf', height = 15, width = 13)
 par(mfrow = c(1,1), mar = c(4,15,3,3), oma = c(3, 0, 2, 0))
 
-image.real3d(R2MatFull, pMatFull, x.labels = alt.x.labels, y.labels = c("Env. filtering", "Dispersal", "Niche conserv.", "Speciation", "Competition"),
+modelMetricDivergent(R2MatFull, pMatFull, x.labels = alt.x.labels, y.labels = c("Env. filtering", "Dispersal", "Niche conserv.", "Speciation", "Competition"),
              cex.metrics = 1.4, cex.models = 1.3, cex.processes = 1.4,
              boxes = T, 
              boxProcesses = c(rep('env', length(env.metrics)),
                                          rep('dis', length(dis.metrics)),
                                          rep('mut', length(mut.metrics))), 
              boxMetrics = c(env.metrics, dis.metrics, mut.metrics), 
-             lwd = 5, srt = 90, cex.asterisk = 2, metric.order = dend.order)
+             boxes2 = T, 
+             boxProcesses2 = c(rep('env', length(env.metrics2)),
+                                         rep('dis', length(dis.metrics2)),
+                                         rep('mut', length(mut.metrics2))), 
+             boxMetrics2 = c(env.metrics2, dis.metrics2, mut.metrics2), 
+             lwd = 5, srt = 90, cex.asterisk = 2, metric.order = dend.order,
+             lty2 = '42') # dash length 4, gap length 2
 
 mtext("Models", 1, outer = TRUE, cex = 2.5, at = .53)
 #mtext("Metrics", 2, cex = 2.5, outer = TRUE, line = -3)
 mtext("Processes", 3, cex = 2.5, outer = TRUE, at = 0.53)
 dev.off()
+```
 
-# boxes = F so that they can be plotted manually in larger blocks
-# Run `plot(dend, edgePar = list(lwd=2))` and copy and paste dendrogram
-# which must be both flipped horizontally and then rotated 90 deg to
-# add to the right side of the all_metrics_correlations.pdf plot.
-# Best if copied from window with wide x short dimensions.
+## Fig. S2 - Bootstrap
 
+```{r}
+pdf('figures/Fig.S2-ConsistencyBootSD.pdf', height = 15, width = 13)
+par(mfrow = c(1,1), mar = c(4,15,3,3), oma = c(3, 0, 2, 0))
+
+modelMetricContinous(R2MatFullBootSD,
+                   cex.metrics = 1.4, cex.models = 1.3, cex.processes = 1.4,
+              lwd = 5, srt = 90, metric.order = dend.order,
+              x.labels = alt.x.labels,
+              y.labels = c("Env. filtering", "Dispersal", "Niche conserv.", "Speciation", "Competition"))
+mtext("Models", 1, outer = TRUE, cex = 2.5, at = .53)
+#mtext("Metrics", 2, cex = 2.5, outer = TRUE, line = -3)
+mtext("Processes", 3, cex = 2.5, outer = TRUE, at = 0.53)
+dev.off()
 ```
 
 # Model inversion
 
-```{r}
-library(ranger)
-```
-
-## Calculating RF and CV RF values
-
 Because simulation models differ substantially in the size of trees they typically produce, we run the random forests and conduct model inversions using only the tree metrics that are not strongly correlated with richness.
 
-```{r, cache=cacheData}
+## Fig. S3 - Variable Importance
 
-# For all tree statistics, use statisticsIndices1, 
-# for tree statistics not strongly correlated with richness use statisticsIndices2
-statisticsIndices = statisticsIndices1
-
-statistics2 = colnames(simuData)[statisticsIndices]
-
-predictability2 = array(dim = c(length(statistics2), 
-                                length(predictors), 
-                                length(models)))
-
-predictability2R2 = array(dim = c(length(predictors), 
-                                  length(models)))
-rownames(predictability2R2) = predictors
-colnames(predictability2R2) = models
-predictabilityR2CV = predictability2R2
-
-set.seed(0)
-for(j in 1:length(predictorsIndices)){
-  for(k in 1:length(models)){
-    tmp = simuData[simuData$model == models[k],c(predictorsIndices[j], statisticsIndices)]
-    tmp = tmp[complete.cases(tmp),]
-    if(nrow(tmp) > 0){
-      form = as.formula(paste(predictors[j], "~ ."))
-      x = ranger(form, data = tmp, 
-                 importance = 'permutation',
-                scale.permutation.importance = T, num.trees = 5000)
-      predictability2[,j,k] = importance(x)     
-      predictability2R2[j,k] = x$r.squared
-      
-      cvindices = sample(1:5, size = nrow(tmp), replace = T)
-      r2 = rep(NA, 5)
-      for(i in 1:5){
-         x = ranger(form, data = tmp[cvindices != i, ], num.trees = 5000)
-         xp = predict(x, data = tmp[cvindices == i,] )
-         r2[i] = cor(tmp[cvindices == i, 1], xp$predictions)
-      }
-      predictabilityR2CV[j,k] = mean(r2)
-    } 
-  }
-}
-```
-
-## Examining Variable Importance
+Reading in calculations
 
 ```{r}
-RFimportancePlot <- function(mat, xCol = c( "gray94", "lightblue", "blue", "darkblue"), 
-                         range = c(0,1), x.labels = dimnames(mat)[[1]],      
-                         y.labels = dimnames(mat)[[2]], alpha = .01, cex.metrics = 0.5, 
-                         cex.models = 0.7, cex.processes = 1,
-                         lwd = 4,
-                         srt = 60, 
-                         metric.order = 1:dim(mat)[1] #default is to list metrics in the order they appear in the columns of simuData, but can optionally pass an alternative order, e.g., that derived from the metric-correlation clustering
-)
-{ 
-  
-  processPosition = data.frame(process = c('env', 'dis', 'nic', 'mut', 'com'),
-                               xPos = c(0.6, 10.5, 20.5, 30.5, 40.5))
-  
-  metricPosition = data.frame(metrics = rownames(mat)[metric.order], 
-                              yPos = seq(0.5, nrow(mat)-0.5, by = 1))
-  
-  newMat = matrix(nrow = dim(mat)[1], ncol = 50)
-  row.index = 0
-  for(i in 1:dim(mat)[1]){   
-    row.index = row.index + 1
-    for(k in 1:dim(mat)[2]) {
-      newMat[i,(1+(k-1)*10):((k-1)*10 + dim(mat)[3])] = mat[dend.order[row.index],k,]
-    }
-  }
-  
-  newMat <- t(newMat)
-  xpos = rep(0:(dim(mat)[2]-1), each = dim(mat)[3])*10 + 1:dim(mat)[3] 
-  ypos = 1:dim(mat)[1]
-  fields::image.plot(x = 1:50, y = 1:dim(mat)[1], z = newMat, axes = FALSE, zlim = range, 
-                     col = colorRampPalette(xCol)(30), xlab = "", ylab = "")
-  
-  abline(v = c(0,10,20,30,40,50) + 0.5)
-  abline(v = c(0,10,20,30,40,50) - 1.5)
-  abline(h = c(1:(dim(mat)[1] +1)) + 0.5)
-  axis(2, at = ypos, labels = x.labels[metric.order], las = 2, cex.axis = cex.metrics)
-  axis(3, at = seq(5, 45, by = 10), labels = y.labels, cex.axis = cex.processes, las = 1)
-  axis(1, at = xpos, labels = F, tck = -0.01)
-  box() 
-  
-  text(x = xpos, y = 0, srt = srt, adj = 1, xpd = TRUE, labels = rep(dimnames(mat)[[3]], 5), cex = cex.models)
-  
-
-} #end function
-
-
-rownames(predictability2) = predictors
-colnames(predictability2) = models
-
-RFimportancePlot(predictability2)
+RFimportance = bootResults[[1]]$predictability$importance
+dimnames(RFimportance)[[3]]  = c("ca", "fh", "ge", "hs", "am", "pw", "ve", "xe")
 ```
 
-## Predictability within a model
+```{r}
+pdf('figures/Fig.S3-VariableImportance.pdf', height = 15, width = 13)
+par(mfrow = c(1,1), mar = c(4,15,3,3), oma = c(3, 0, 2, 0))
+
+modelMetricContinous(RFimportance,
+                   cex.metrics = 1.4, cex.models = 1.3, cex.processes = 1.4,
+              lwd = 5, srt = 90, metric.order = dend.order,
+              x.labels = alt.x.labels,
+              y.labels = c("Env. filtering", "Dispersal", "Niche conserv.", "Speciation", "Competition"))
+mtext("Models", 1, outer = TRUE, cex = 2.5, at = .53)
+#mtext("Metrics", 2, cex = 2.5, outer = TRUE, line = -3)
+mtext("Processes", 3, cex = 2.5, outer = TRUE, at = 0.53)
+dev.off()
+```
+
+## Fig. 2 - predictability within a model
+
+Reading in calculations
+
+```{r}
+predictabilityR2CV = bootResults[[1]]$predictability$predictabilityR2CV
+```
 
 The internally calculated R2 values of a RF can sometimes be misleading. That's why we additionally calculated R2 values from a 5-fold CV in the calculation loop above. Results are very similar.
 
@@ -466,6 +378,10 @@ modelColors = data.frame(model = models,
                                    rgb(0, 114/255, 178/255),
                                    rgb(213/255, 94/255, 0),
                                    rgb(204/255, 121/255, 167/255)))
+```
+
+```{r}
+pdf('figures/Fig.2-predictabilityWithin.pdf', height = 8, width = 14)
 
 par(mar = c(4, 6, 0, 0), mgp = c(4, 1, 0), mfrow = c(1,1))
 
@@ -484,127 +400,40 @@ axis(1, at = c(0, 9.5, 18.5, 27.5, 36.5, 45.5), tick = T, tck = -0.04, labels = 
 text(6, 1.01, "Models", cex = 2)
 legend(0, 1, legend = modelColors$newLabel, fill = modelColors$color, ncol = 2, bty = 'n', cex = 1.8)
 
+dev.off()
 ```
 
-## Between models
+## Fig. 3 - predictability between models
 
-As a next step, we calculate predictability between models, i.e. we use the random forests tuned for one model to predict to the next model.
+As a next step, we calculate show between models, i.e. we use the random forests tuned for one model to predict to the next model. Cross-model predictability is measured by Kendall's rank correlation coefficient. For the diagonal (within-model predictability), we use the CV predictability calculated in the previous step.
 
-Cross-model predictability is measured by Kendall's rank correlation coefficient.
-
-For the diagonal (within-model predictability), we use the CV predictability calculated in the previous step.
+Reading in calculations
 
 ```{r}
-# Modified version of image.plot
-image.real <- function(mat, xCol = c("blue", "white", "white", "red"), 
-                       range = c(-1,1), x.labels = rownames(mat), 
-                       y.labels = colnames(mat), cex.axis = 1) { 
-  mat <- t(mat)[,nrow(mat):1]
-  fields::image.plot(mat, axes = FALSE, zlim = range, 
-                     col = colorRampPalette(xCol)(30))
-  axis(1, at = seq(0, 1, length = nrow(mat)), labels = x.labels, cex.axis = cex.axis)
-  axis(2, at = seq(0, 1, length = ncol(mat)), labels = y.labels, las = 2, cex.axis = cex.axis)
-  box() 
-}
+speciationCP = bootResults[[1]]$crossPredictability$speciationCP
+dispersalCP = bootResults[[1]]$crossPredictability$dispersalCP
 
+#creating bootstrap matrices
+speciationCPBoot = dispersalCPBoot = array(dim = c(nBoot, dim(speciationCP)))
 
-# Function for plotting cross-model predictability
+# writing results in matrices
+for (i in 2:length(files)) {
+  speciationCPBoot[i-1, , ] = bootResults[[i]]$crossPredictability$speciationCP
+  dispersalCPBoot[i-1, , ] = bootResults[[i]]$crossPredictability$dispersalCP  
+} 
 
-crossPredictability = function(process, # env, dis, nic, mut, com
-                               num.trees = 5000, 
-                               allMetrics = FALSE, #if TRUE, includes S-correlated
-                               seed = 1) {
-  
-  # Specify metrics to use in RF (i.e. include richness-correlated metrics or not)
-  if (allMetrics) {
-    statisticsIndices = statisticsIndices1
-  } else {
-    statisticsIndices = statisticsIndices2
-  }
+speciationCPBootSD <- apply(speciationCPBoot, c(2,3), sd )
+dispersalCPBootSD <- apply(dispersalCPBoot, c(2,3), sd )
 
-  set.seed(seed)
-  
-  processes = c('env', 'dis', 'nic', 'mut', 'com')
-  processIndex = which(processes == process)
-  
-  modelsToInclude = modelAbbrevs[, process]
-  
-  modelsTMP = models[modelsToInclude]
+dimnames(speciationCPBootSD) = dimnames(speciationCP)
+dimnames(dispersalCPBootSD) = dimnames(dispersalCP)
+```
 
-  CpredictabilityR2 = array(dim = c(length(modelsTMP), length(modelsTMP)))
+2-panel figure showing cross-predictability for a) dispersal and b) speciation This takes several minutes.
 
-    for(k in 1:length(modelsTMP)){
-      train = simuData[simuData$model == modelsTMP[k],
-                       c(predictorsIndices[processIndex],
-                         statisticsIndices)]
-      train = train[complete.cases(train),]
-      if(nrow(train) > 0){
-        form = as.formula(paste(predictors[processIndex], "~ ."))
-        x = ranger(form, data = train, num.trees = num.trees)
-      } 
-      for(j in 1:length(modelsTMP)){
-        test = simuData[simuData$model == modelsTMP[j],
-                        c(predictorsIndices[processIndex], statisticsIndices)]
-        test = test[complete.cases(test),]
-        if(nrow(test) > 0 & k != j){
-          y = predict(x, test)
-          CpredictabilityR2[k,j] = cor(y$predictions, test[,1], 
-                                         method = "kendall")
-        } # end if
-      } # end j testing 
-    } # end k training
+```{r}
 
-
-  rownames(CpredictabilityR2) = modelAbbrevs$new[modelAbbrevs$original %in% modelsTMP]
-  colnames(CpredictabilityR2) = modelAbbrevs$new[modelAbbrevs$original %in% modelsTMP]
-
-  # within-model predictability
-  tmp = predictabilityR2CV[processIndex,modelsToInclude]
-  for(i in 1:length(modelsTMP)) CpredictabilityR2[i,i] = tmp[i]
-
-  return(CpredictabilityR2)
-}
-
-  
-crossPredictabilityPlot = function(CpredictabilityR2,
-                                   cexValues = 1, cexMain = 2, 
-                                   cexAxis = 1.5, cexLab = 1.8,
-                                   mainText, cexLabSub = 1.2,
-                                   xCol = c("darkblue","blue",
-                                            "lightblue", "white",
-                                            "pink","red", "darkred"))
-{
-  
-  image.real(CpredictabilityR2, range = c(-1,1), xCol = xCol, cex.axis = cexAxis)
-  title(main = mainText, xlab = "predicted to trees from", 
-        cex.lab = cexLab, cex.main = cexMain)
-  mtext("Model trained on\n", 2, line = 2.7, cex = cexLab)
-  mtext("(modelers' assumption of reality)", 2, line = 3.4, cex = cexLabSub)
-  mtext("(what if reality works like this model?)", 1, line = 4.5, cex = cexLabSub)
-
-  # add values to cells
-  for(i in 1:nrow(CpredictabilityR2)){
-    for(j in 1:nrow(CpredictabilityR2)){
-      text((j-1)/(nrow(CpredictabilityR2) - 1),
-           1-(i-1)/(nrow(CpredictabilityR2) - 1), 
-           labels = format(round(CpredictabilityR2[i,j], digits = 2), nsmall = 2),
-           cex = cexValues)
-  
-    }
-  }
-}
-
-
-
-# 2-panel figure showing cross-predictability for a) dispersal and b) speciation
-# This takes several minutes.
-
-speciationCP = crossPredictability(process = 'mut', num.trees = 5000, 
-                                   allMetrics = TRUE)
-
-dispersalCP = crossPredictability(process = 'dis', num.trees = 5000,
-                                  allMetrics = TRUE)
-
+pdf('figures/Fig.3-predictabilityBetween.pdf', height = 7, width = 14)
 
 par(mfrow = c(1, 2), mar = c(6,7,4,4), mgp = c(3, 1, 0), oma = c(0, 0, 0, 1))
 
@@ -619,20 +448,50 @@ crossPredictabilityPlot(dispersalCP, cexLab = 2,
                     cexLabSub = 1.5, mainText = "Dispersal")
 mtext("b)", 2, at = 1.2, las = 1, cex = 2.5, line = 2)
 
+dev.off()
+```
 
+## Fig S4 - Bootstrap uncertainty
 
-
-# 2-panel figure showing cross-predictability for a) environmental filtering and 
-# b) competition.
-# This takes several minutes.
-
-envCP = crossPredictability(process = 'env', num.trees = 5000, allMetrics = TRUE)
-
-comCP = crossPredictability(process = 'com', num.trees = 5000, allMetrics = TRUE)
-
-nicCP = crossPredictability(process = 'nic', num.trees = 5000, allMetrics = TRUE)
+```{r}
+pdf('figures/Fig.S4-predictabilityBetween-Boot.pdf', height = 7, width = 14)
 
 par(mfrow = c(1, 2), mar = c(6,7,4,4), mgp = c(3, 1, 0), oma = c(0, 0, 0, 1))
+
+crossPredictabilityPlot(speciationCPBootSD, cexLab = 2,
+                    cexAxis = 1.8, cexValues = 1.3, cexMain = 2.5,
+                    cexLabSub = 1.5,
+                    range = c(0,1),
+                    xCol = rev(c("darkblue","blue","lightblue", "white")),
+                    mainText = "Speciation")
+mtext("a)", 2, at= 1.2, las = 1, cex = 2.5, line = 2)
+
+
+crossPredictabilityPlot(dispersalCPBootSD, cexLab = 2,
+                    cexAxis = 1.8, cexValues = 1.3, cexMain = 2.5,
+                    cexLabSub = 1.5,
+                    range = c(0,1),
+                    xCol = rev(c("darkblue","blue","lightblue", "white")),
+                    mainText = "Speciation")
+mtext("a)", 2, at= 1.2, las = 1, cex = 2.5, line = 2)
+
+dev.off()
+```
+
+## Fig S5
+
+2-panel figure showing cross-predictability for a) environmental filtering and b) competition. This takes several minutes.
+
+```{r}
+envCP = bootResults[[1]]$crossPredictability$envCP
+comCP = bootResults[[1]]$crossPredictability$comCP
+nicCP = bootResults[[1]]$crossPredictability$nicCP
+```
+
+```{r}
+pdf('figures/Fig.S3-predictabilityBetweenEnvComp.pdf', height = 14, width = 14)
+
+par(mfrow = c(2, 2), mar = c(6,7,4,4), mgp = c(3, 1, 0), oma = c(0, 0, 0, 1))
 
 crossPredictabilityPlot(envCP, cexLab = 2,
                     cexAxis = 1.8, cexValues = 1.3, cexMain = 2.5, cexLabSub = 1.5,
@@ -644,151 +503,46 @@ crossPredictabilityPlot(comCP, cexLab = 2,
                     mainText = "Competition")
 mtext("b)", 2, at = 1.2, las = 1, cex = 2.5, line = 2)
 
-
 crossPredictabilityPlot(nicCP, cexLab = 2,
                     cexAxis = 1.8, cexValues = 1.3, cexMain = 2.5, cexLabSub = 1.5,
                     mainText = "Niche conservatism")
 mtext("c)", 2, at= 1.2, las = 1, cex = 2.5, line = 2)
 
+dev.off()
 ```
 
-# Case studies
+# Case study
 
-## within each model
+General idea: Fit random forests for each simulation model on the simulated data to predict model parameter values from simulation-derived tree shape metrics. Then, use empirical tree shape metrics to infer process parameter values based on the fitted RF for each of these models.
 
-Run random forests within each simulation model in order to predict model parameter values from simulation-derived tree shape metrics. Then plug in empirical tree shape metrics to infer a process parameter value assuming that the tree arose from the processes represented by a particular simulation model.
+Note that in this simulation, RF that were fit excluded all tree shape metrics correlated to tree size.
+
+## Fig. 4
+
+Read in data
 
 ```{r}
+scaledPredictions2 = bootResults[[1]]$casestudy$scaledPredictions2
 
-# run a version of metricsForManyTrees() to get tree metric output for empirical sister clades (but that function assumes diff model ID naming convention, so had to manually tweak)
-allEmpiricalMetrics = read.table('derived_tree_data/empiricalSisterClades_treeStats.txt', header = T, sep = '\t')
-# Filter out hippo and primate clade pairs because of small size
-empiricalMetrics = filter(allEmpiricalMetrics, !simID %in% c(3,7))
-empiricalMetrics$clade = rep(c(1,2), 6)
-empiricalMetrics$pair = empiricalMetrics$simID
-empiricalMetrics$cladeName = c('Xenarthra', 'Afrotheria',
-                               'Carnivora/\nPerissodactyla', 'Cetartiodactyla',
-                               'Apodi', 'Trochili',
-                               'Rodentia', 'Lagomorpha',
-                               'Coraciiformes', 'Passeriformes',
-                               'Pelecaniformes', 'Ciconiiformes')
-empiricalMetrics$tree2 = word(empiricalMetrics$tree, sep = '.tre')
+empiricalMetrics = bootResults[[1]]$casestudy$empiricalMetrics
 
-# The metrics not strongly correlated with richness that were used for RF models
-empMetrics2 = empiricalMetrics[, colnames(simuData)[statisticsIndices2]]
+#creating bootstrap matrices
 
-predictedValues2 = data.frame(tree = character(),
-                              model = character(), 
-                              predictor = character(),
-                              value = numeric())
+tmp = array(dim = c(nBoot, nrow(scaledPredictions2)))
 
-predictability2 = array(dim = c(length(statistics2), length(predictors), length(models)))
-predictability2R2 = array(dim = c(length(predictors), length(models)))
+# writing results in matrices
+for (i in 2:length(files)) {
+  tmp[i-1, ] = bootResults[[i]]$casestudy$scaledPredictions2$scaledValue
+} 
 
-# For each combination of process (predictorsIndices) and simulation model, infer the strength of process for each empirical tree based on the RF
+scaledPredictions2$scaledValueSD = apply(tmp, 2, sd)
+```
 
+Function for plotting inferred process strengths of empirical sister clades, as well as actual tree metric values for those clades. bottom panel illustrates relative magnitude of two metrics which were identified as the metrics with consistent responses to specified process
 
-set.seed(1)
-  for(j in 1:length(predictorsIndices)){
-    for(k in 1:length(models)){
-      tmp = simuData[simuData$model == models[k],c(predictorsIndices[j],
-                                                   statisticsIndices2)]
-      tmp = tmp[complete.cases(tmp),]
-      if(nrow(tmp) > 0){
-        form = as.formula(paste(predictors[j], "~ ."))
-        x = ranger(form, data = tmp, importance = 'permutation',
-                   scale.permutation.importance = T,
-                   num.trees = 5000)
-        predictions = predict(x, data = empMetrics2)
-      
-        tmpPredictions = data.frame(tree = word(empiricalMetrics$tree, 1, sep = fixed('.')),
-                                    model = rep(models[k], nrow(empMetrics2)),
-                                    predictor = rep(predictors[j], nrow(empMetrics2)),
-                                    value = predictions$predictions)
-      
-        predictedValues2 = rbind(predictedValues2, tmpPredictions)
-      
-      } # end if
-    } # end models
-  } # end predictors
+Note: needs to be kept here because the function accesses global variables
 
-predictedValues2 = predictedValues2 %>%
-  arrange(predictor, model, tree)
-
-# Need to standardize the predicted parameter values relative to the range of values examined within a given model.  
-#   scaled = (x - min) / (max - min)          
-
-# So first need to identify min and max values for each model-parameter combo:
-# (this generates lots of warnings because of -Inf and Inf values but these can be ignored)
-modelParamRange = simuData %>%
-  group_by(model) %>%
-  summarize(env1Min = min(env1, na.rm = T),
-            env1Max = max(env1, na.rm = T),
-            com1Min = min(com1, na.rm = T),
-            com1Max = max(com1, na.rm = T),
-            dis1Min = min(dis1, na.rm = T),
-            dis1Max = max(dis1, na.rm = T),
-            nic1Min = min(nic1, na.rm = T),
-            nic1Max = max(nic1, na.rm = T),
-            mut1Min = min(mut1, na.rm = T),
-            mut1Max = max(mut1, na.rm = T))
-
-# Note that for some model/parameter combinations, the modeler varied parameter values uniformly on a log scale, while for others values varied uniformly on an arithmetic scale.
-
-# I examined the skewness values of all sets of values, and determined that each of the following combinations had a skewness of 0.7 or greater and merited being log-transformed prior to scaling. 
-# (Otherwise, the scaled values, e.g. in model 'hs' for dis1 or mut1 are close to 0)
-
-# ca: mut1, com1
-# hs: dis1, mut1
-# xe: dis1, mut1
-
-modelParamRange$com1Min[modelParamRange$model == 'ca'] = log10(modelParamRange$com1Min[modelParamRange$model == 'ca'])
-modelParamRange$com1Max[modelParamRange$model == 'ca'] = log10(modelParamRange$com1Max[modelParamRange$model == 'ca'])
-modelParamRange$dis1Min[modelParamRange$model %in% c('hs', 'xe')] = log10(modelParamRange$dis1Min[modelParamRange$model %in% c('hs', 'xe')])
-modelParamRange$dis1Max[modelParamRange$model %in% c('hs', 'xe')] = log10(modelParamRange$dis1Max[modelParamRange$model %in% c('hs', 'xe')])
-modelParamRange$mut1Min[modelParamRange$model %in% c('hs', 'xe', 'ca')] = log10(modelParamRange$mut1Min[modelParamRange$model %in% c('hs', 'xe', 'ca')])
-modelParamRange$mut1Max[modelParamRange$model %in% c('hs', 'xe', 'ca')] = log10(modelParamRange$mut1Max[modelParamRange$model %in% c('hs', 'xe', 'ca')])
-
-# Rearrange
-modelParamMinMax = data.frame(model = rep(modelParamRange$model, 5), 
-                              predictor = rep(c('env1', 'com1', 'dis1', 'nic1', 'mut1'), each = 8),
-                              minVal = c(modelParamRange$env1Min, modelParamRange$com1Min, modelParamRange$dis1Min, 
-                                         modelParamRange$nic1Min, modelParamRange$mut1Min),
-                              maxVal = c(modelParamRange$env1Max, modelParamRange$com1Max, modelParamRange$dis1Max, 
-                                         modelParamRange$nic1Max, modelParamRange$mut1Max))
-
-
-# Also need to log-transform the same parameter values in predictedValues2
-predictedValues2$value[predictedValues2$model == 'ca' & predictedValues2$predictor %in% c('mut1', 'com1')] = 
-  log10(predictedValues2$value[predictedValues2$model == 'ca' & predictedValues2$predictor %in% c('mut1', 'com1')])
-
-predictedValues2$value[predictedValues2$model %in% c('hs', 'xe') & predictedValues2$predictor %in% c('mut1', 'dis1')] = 
-  log10(predictedValues2$value[predictedValues2$model %in% c('hs', 'xe') & predictedValues2$predictor %in% c('mut1', 'dis1')])
-
-
-# Function for rescaling a value between the min and max such that the scaled value varies between 0 and 1.
-# If either the min or max are NA, Inf, or -Inf, returns NA
-scaleFunction = function(value, min, max) {
-  
-  if (!min %in% c(-Inf, NA, Inf) & !max %in% c(-Inf, NA, Inf)) {
-    
-    scaledValue = (value - min) / (max - min)
-  
-  } else {
-  
-    scaledValue = NA
-  
-  }
-  return(scaledValue)
-}
-
-
-
-# Function for plotting inferred process strengths of empirical sister clades,
-# as well as actual tree metric values for those clades.
-# --bottom panel illustrates relative magnitude of two metrics which were 
-#   identified as the metrics with consistent responses to specified process
-
+```{r}
 empiricalModelInferencePlot = function(process, # env1, dis1, mut1, nic1, com1
                                        metric1, metric2=NULL, 
                                        met1label, met2label=NULL, 
@@ -813,19 +567,21 @@ empiricalModelInferencePlot = function(process, # env1, dis1, mut1, nic1, com1
                                        model.abbrev = TRUE,
                                        panel.margins = c(6, 5, 1, 1),
                                        outer.margins = c(0, 3, 0, 0),
-                                       bar.space = .1) {
+                                       bar.space = .1,
+                                       errorBars = FALSE,
+                                       lwdErrorBars = 2) {
   
   par(mfrow = c(2, 3), mar = panel.margins, oma = outer.margins)
-
+  
   panelLetters = letters[1:6]
   panelIndex = 0
-
+  
   processes = c('env1', 'dis1', 'mut1', 'nic1', 'com1')
   processLabels = c('Env. Filtering', 'Dispersal', 'Speciation', 'Niche conserv.',
                     'Competition')
   
   for (p in pairOrder) {
-  
+    
     panelIndex = panelIndex + 1
     
     tmp = filter(scaledPredictions2, pair == p, predictor == process) %>% 
@@ -833,52 +589,61 @@ empiricalModelInferencePlot = function(process, # env1, dis1, mut1, nic1, com1
     
     plot(c(0.5,2.5), range(tmp$scaledValue), type = 'n', xaxt = 'n', xlab = "",
          ylab = "", las = 1, ylim = c(-.3, 1), yaxt = 'n')
-  
+    
     mtext(tmp$cladeName[1:2], 1, at = 1:2, line = line.clade, cex = cex.clade, padj = 0.5)
     offset = metric.offset
-      
+    
     axis(2, at = seq(0.1, 1, by = 0.1), las = 1, cex.axis = cex.axis)
- 
+    
     abline(h = 0.1)
-     
+    
     for (m in unique(tmp$model)) {
       
       points(tmp$clade[tmp$model==m], tmp$scaledValue[tmp$model==m], type = 'b',
              col = tmp$color[tmp$model==m], lwd = lwd)
+      
+      if(errorBars) {
+        segments(tmp$clade[tmp$model==m], tmp$scaledValue[tmp$model==m] - 
+                   tmp$scaledValueSD[tmp$model==m],
+                 tmp$clade[tmp$model==m], tmp$scaledValue[tmp$model==m] + 
+                   tmp$scaledValueSD[tmp$model==m],
+                 col = tmp$color[tmp$model==m],
+                 lwd = lwdErrorBars)
+      }
       
       if (model.abbrev) {
         text(2.1, tmp$scaledValue[tmp$model==m & tmp$clade == 2],
              tmp$newLabel[tmp$model==m], adj = 0, cex = cex.models)
       }
     } #end models
-  
+    
     # panel label
     text(.58, 0.97, paste0("(", panelLetters[panelIndex], ")"), cex = cex.panel)
-
+    
     # Add barplots showing empirical values of mean.Iprime and VRD for the two sister clades
     par(new = T)
-  
+    
     if(!is.null(metric2)) { # if there are 2 metrics to plot
       
-    tmpBarData = empiricalMetrics[empiricalMetrics$pair == p, 
-                                  c(metric1, metric2)] %>%
-      rowwise() %>%
-      mutate(quantile.met1 = sum(get(metric1) > simuData[, metric1], 
-                                 na.rm = T)/nrow(simuData),
-            quantile.met2 = sum(get(metric2) > simuData[, metric2], 
-                                 na.rm = T)/nrow(simuData)) %>%
-      dplyr::select(quantile.met1, quantile.met2) %>%
-      t() %>%
-      as.matrix()
-
-    barplot(tmpBarData, beside = T, yaxt = 'n', ylim = c(0, 3), border = NA, 
-            xlim = c(0.5, 7), xaxt = 'n', space = c(bar.space, 1.4-bar.space))
-    axis(2, at = c(0, 0.25, 0.5, 0.75), labels = c(0, 25, 50, 75), las = 1, 
-         cex.axis = cex.axis.quantiles)
-    abline(h = c(.25, .5, .75), col = 'gray', lty = 'dashed')
+      tmpBarData = empiricalMetrics[empiricalMetrics$pair == p, 
+                                    c(metric1, metric2)] %>%
+        rowwise() %>%
+        mutate(quantile.met1 = sum(get(metric1) > simuData[, metric1], 
+                                   na.rm = T)/nrow(simuData),
+               quantile.met2 = sum(get(metric2) > simuData[, metric2], 
+                                   na.rm = T)/nrow(simuData)) %>%
+        dplyr::select(quantile.met1, quantile.met2) %>%
+        t() %>%
+        as.matrix()
       
-    mtext(c(met1label, met2label, met1label, met2label), 1, at = c(1.1 - offset, 1.05 + offset, 2.05 - offset, 2. + offset), line = line.metrics, cex = cex.metrics)
-
+      barplot(tmpBarData, beside = T, yaxt = 'n', ylim = c(0, 3), border = NA, 
+              xlim = c(0.5, 7), xaxt = 'n', space = c(bar.space, 1.4-bar.space))
+      axis(2, at = c(0, 0.25, 0.5, 0.75), labels = c(0, 25, 50, 75), las = 1, 
+           cex.axis = cex.axis.quantiles)
+      abline(h = c(.25, .5, .75), col = 'gray', lty = 'dashed')
+      
+      mtext(c(met1label, met2label, met1label, met2label), 1, at = c(1.1 - offset, 1.05 + offset, 2.05 - offset, 2. + offset), line = line.metrics, cex = cex.metrics)
+      
       
     } else { # if there is 1 metric to plot
       
@@ -886,22 +651,22 @@ empiricalModelInferencePlot = function(process, # env1, dis1, mut1, nic1, com1
                                     c('simID', metric1)] %>%
         rowwise() %>%
         mutate(quantile.met1 = sum(get(metric1) > simuData[, metric1], 
-                                 na.rm = T)/nrow(simuData)) %>%
+                                   na.rm = T)/nrow(simuData)) %>%
         dplyr::select(quantile.met1) %>%
         t() %>%
         as.matrix()
-
+      
       barplot(tmpBarData, yaxt = 'n', ylim = c(0, 3), border = NA, 
               xlim = c(0, 1.3), xaxt = 'n', width = 0.5)
       axis(2, at = c(0, 0.25, 0.5, 0.75), labels = c(0, 25, 50, 75), las = 1, 
-         cex.axis = cex.axis.quantiles)
+           cex.axis = cex.axis.quantiles)
       abline(h = c(.25, .5, .75), col = 'gray', lty = 'dashed')
-
+      
       #mtext(c(met1label, met2label, met1label, met2label), 1, at = c(1.1 - offset, 1.05 + offset, 2.05 - offset, 2. + offset), line = line.metrics, cex = cex.metrics)
-
+      
     }
     
-  
+    
     if (panelIndex %in% c(1, 4)) {
       
       yaxis.string = ifelse(is.null(metric2),
@@ -913,38 +678,20 @@ empiricalModelInferencePlot = function(process, # env1, dis1, mut1, nic1, com1
     }
     
     #if (legend & panelIndex %in% c(1,6)) {
-      legend("topright", legend = tmp$newLabel[tmp$clade == 1], 
-             col = tmp$color[tmp$clade == 1], pch = 15, #bty = 'n', 
-             cex = cex.legend, pt.cex = cex.legendpts)
+    legend("topright", legend = tmp$newLabel[tmp$clade == 1], 
+           col = tmp$color[tmp$clade == 1], pch = 15, #bty = 'n', 
+           cex = cex.legend, pt.cex = cex.legendpts)
     #}
   } # end pairOrder
-
+  
 } # end function
+```
 
+Plot of model inversion for dispersal across 6 empirical sister clade pairs -bottom panel illustrates relative magnitude of mntd and laplac_spectrum_p which were identified as the tree metrics with consistent responses to speciation
 
+```{r}
 
-
-scaledPredictions2 = predictedValues2 %>%
-  left_join(modelParamMinMax, by = c('model', 'predictor')) %>%
-  mutate(pair = str_extract(tree, "[1-9]"))
-
-scaledPredictions2$clade = rep(c(1, 2), nrow(predictedValues2)/2)
-
-scaledPredictions2$scaledValue = apply(scaledPredictions2[, c('value', 'minVal', 'maxVal')], 1, 
-                             function(x) scaleFunction(value = x[1], min = x[2], max = x[3]))
-
-scaledPredictions2 = left_join(scaledPredictions2, modelColors, by = 'model')
-
-write.csv(scaledPredictions2, 'derived_tree_data/scaled_predictions_empirical_trees.csv', row.names = F)
-
-
-
-
-
-
-# Plot of model inversion for dispersal across 6 empirical sister clade pairs
-# --bottom panel illustrates relative magnitude of mntd and laplac_spectrum_p
-# which were identified as the tree metrics with consistent responses to speciation
+pdf('figures/Fig.4.pdf', height = 8.5, width = 14)
 
 empiricalModelInferencePlot('mut1', metric1='mean_branch_length', 
                             metric2=NULL,
@@ -957,9 +704,10 @@ empiricalModelInferencePlot('mut1', metric1='mean_branch_length',
                              cex.process = 1.7, line.process = 5, 
                             line.quantile = 4, line.clade = 1.5, 
                             line.metrics = .9, cex.axis.quantiles = 1.75, 
-                            lwd = 4, outer.margins = c(0, 4, 0, 0))
+                            lwd = 4, outer.margins = c(0, 4, 0, 0),
+                            errorBars = TRUE)
 
-
+dev.off()
 
 #empiricalModelInferencePlot('mut1', metric1='mean_branch_length', 
 #                            metric2='laplac_spectrum_p',
@@ -974,10 +722,13 @@ empiricalModelInferencePlot('mut1', metric1='mean_branch_length',
 #                            line.metrics = .9, cex.axis.quantiles = 1.75, 
 #                            lwd = 4, outer.margins = c(0, 4, 0, 0))
 
-# Plot of model inversion for dispersal across 6 empirical sister clade pairs
-# --bottom panel illustrates relative magnitude of average_leaf_depth and j_one
-# which were identified as the tree metrics with consistent responses to dispersal
 
+
+```
+
+Plot of model inversion for dispersal across 6 empirical sister clade pairs bottom panel illustrates relative magnitude of average_leaf_depth and j_one which were identified as the tree metrics with consistent responses to dispersal
+
+```{r}
 empiricalModelInferencePlot('dis1', metric1='average_leaf_depth', metric2='j_one',
                               met1label = 'ALD', met2label = 'J_1', 
                              model.abbrev = F, legend = TRUE, cex.legend = 2, 
@@ -986,20 +737,18 @@ empiricalModelInferencePlot('dis1', metric1='average_leaf_depth', metric2='j_one
                              cex.quantiles = 1.5, cex.panel = 3, 
                              cex.axis = 1.75, bar.space = .35, 
                              cex.process = 1.7, line.process = 5, line.quantile = 4, line.clade = 3, line.metrics = .9, cex.axis.quantiles = 1.75, lwd = 4, outer.margins = c(0, 4, 0, 0))
-
 ```
 
-# Supplemental Figures
+## Supplemental Figures
 
 ```{r}
-
 # Switching out 2 model abbreviations
 simuData$model3 = simuData$model
 simuData$model3 = gsub("pontarp", "pw", simuData$model3)
 simuData$model3 = gsub("la", "am", simuData$model3)
 simuData$model3 = gsub("gen", "ge", simuData$model3)
 
-pdf('figures/metric_boxplots_across_models.pdf', height = 12, width = 10)
+pdf('figures/Fig.SX-metric_boxplots_across_models.pdf', height = 12, width = 10)
 par(mfrow = c(7, 5), mar = c(2.5, 2, 2, 1), mgp = c(2.5, .6, 0))
 
 bp1 = boxplot(log10(simuData$number_of_lineages) ~ simuData$model3, main = 'log # of lineages', col = modelColors$color[order(modelColors$newLabel)], xaxt = 'n', tck = -0.01, xlab = '', ylab = '', lwd = .1)
@@ -1010,11 +759,18 @@ for (i in statisticsIndices2) {
   axis(1, at = 1:8, labels = bp$names, las = 2, cex.axis = 1.4, tck = -0.01)
 }
 
-dev.off()
+dev.off()  
 ```
 
-# Reproducibility information
+# Reproducibility information and saving results
 
 ```{r}
 sessionInfo()
+```
+
+```{r}
+bootstrap
+if(is.null(bootstrap)) bootstrap = 0
+str(resultsToSave)
+save(resultsToSave, file = paste("bootstrap/results-", bootstrap, ".Rdata", sep = ""))
 ```

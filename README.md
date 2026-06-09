@@ -27,4 +27,11 @@ This repository contains code underlying the comparison of 8 eco-evolutionary si
 --manuscript figures
 
 ### Analysis workflow
+
+First, run:
+* Analysis.qmd
+* bootstrapLoopParallel.qmd
+
+Then, run 
+
 **`Analysis.qmd`**: Complete analysis workflow given the `USE_treeStats.txt` and `empiricalSisterClades_treeStats.txt` output  

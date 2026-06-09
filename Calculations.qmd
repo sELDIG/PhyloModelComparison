@@ -1,0 +1,628 @@
+---
+title: "Analysis"
+author: "Allen Hulbert, Florian Hartig"
+date: "`r Sys.Date()`"
+format: 
+  html:
+    embed-resources: true
+    self-contained-math: true
+editor: visual
+editor_options: 
+  chunk_output_type: console
+params:
+  seed: NULL    # default, will be overridden by render()
+---
+
+```{r, echo=FALSE}
+cacheData = F
+```
+
+Required packages
+
+```{r, message=FALSE}
+library(RColorBrewer)
+library(dplyr)
+library(tidyr)
+library(ranger)
+library(stringr)
+library(heatmaply)
+library(usethis)
+library(fields)
+```
+
+Script settings
+
+```{r}
+set.seed(12345)
+bootstrap = params$seed
+chunkEval = is.null(bootstrap)
+resultsToSave = list()
+rangerTreads = 30
+```
+
+# Data preparation
+
+## Calculate tree metrics and align with model processes
+
+```{r}
+source('code/analysis_functions.R')
+source('code/plot_functions.R')
+
+#metricsForManyTrees(list.files("trees/uniform_sampling_experiment"),
+#                    treedir = "trees/uniform_sampling_experiment",
+#                    fileOut = "derived_tree_data/USE_treeStats.txt")
+
+
+# Parameter key across simulations; 
+# url <- 'https://docs.google.com/spreadsheets/d/1pcUuINauW11cE5OpHVQf_ZuzHzhm2VJkCn7-lSEJXYI/edit#gid=1171496897'
+# paramKey <- gsheet2tbl(url)
+# write.csv(paramKey, 'trees/uniform_sampling_experiment/paramKeys/simulation_parameters_key.csv', row.names = F)
+
+# Align parameter values with the relevant experiment, create a dataframe with columns for
+# model, model2 (with scenario suffix if appropriate), simID, and columns for the parameter
+# names and parameter values associated with 5 processes: env, dis, nic, mut, com
+
+modelList = c('ca', 'fh', 'gen', 'hs', 'pontarp', 've', 'xe', 'la')
+
+for (m in modelList) {
+  
+  if (!exists("processDF")) {
+    processDF = alignParametersWithProcesses(m, paramKeyPath = 'trees/uniform_sampling_experiment/paramKeys')
+  } else {
+    processDF = rbind(processDF, alignParametersWithProcesses(m, paramKeyPath = 'trees/uniform_sampling_experiment/paramKeys'))
+  }
+  
+}
+```
+
+Join tree metrics to the aligned parameter-process dataframe: for analysis, use **processDFmetrics** Script for calculating tree metrics for trees that have not already been analyzed
+
+```{r}
+# Read in existing output file
+treeOutput = read.table('derived_tree_data/USE_treeStats.txt', sep = '\t', header = T)
+
+# Join process-parameter linkage dataframe to tree output
+allSimuData = left_join(processDF, treeOutput, by = c('model', 'simID'))
+
+# convert to factor
+allSimuData[sapply(allSimuData, is.character)] <- lapply(allSimuData[sapply(allSimuData, is.character)], 
+                                       as.factor)
+```
+
+### Write file
+
+```{r, eval = chunkEval}
+write.csv(allSimuData, 
+          'derived_tree_data/process_parameter_values_and_tree_metrics_sign_corrected.csv', row.names = F)
+```
+
+## Selection of the data
+
+-   filter out pweird
+-   remove tree_height and crown_age as well as mntd and mpd which are redundant with mean_branch_length_ext and psv, respectively
+-   exclude trees with fewer than 3 tips.
+
+PLUS: bootstrap if bootstrap is set
+
+```{r}
+# For some reason there are 300 pontarp simulations with identical parameter sets:
+pweird = filter(allSimuData, model == "pontarp", env1 > .9, env1 < .95, 
+                dis1 > .09, dis1 < .095, com1 > .26, com1 < .27, 
+                nic1 > -.039, nic1 < -.021)
+
+if (is.null(bootstrap)){
+simuData = allSimuData %>%
+  filter(!(model == "pontarp" & simID %in% pweird$simID),
+         number_of_lineages >= 3) %>%
+  dplyr::select(-tree_height, -crown_age, -mntd, -mpd)  
+} else {
+  set.seed(bootstrap)
+simuData = allSimuData %>%
+  filter(!(model == "pontarp" & simID %in% pweird$simID),
+         number_of_lineages >= 3) %>%
+  dplyr::select(-tree_height, -crown_age, -mntd, -mpd) %>%
+  group_by(model) %>%
+  # Bootstrapping here, resampling the simulations with replacement,
+  # prop is the proportion of group to resample (i.e. entire group)
+  slice_sample(prop = 1, replace = TRUE) %>% 
+  ungroup()
+}
+simuData = as.data.frame(simuData)
+```
+
+# Correlation of metrics
+
+The following code illustrates the pairwise correlations among tree shape metrics, first for all metrics, and second for just the set of metrics that are not strongly (r \> 0.9) correlated with species richness.
+
+```{r}
+# Visualize correlation matrix of tree metrics
+metricCors = cor(simuData[, 24:ncol(simuData)], use = "pairwise.complete.obs")
+
+# Metrics strongly correlated (> 0.9) with number_of_lineages
+richnessCorrelatedMetrics = row.names(metricCors)[metricCors[,1] >= 0.9]
+
+# all 50 tree metrics
+statisticsIndices1 = which(names(simuData) %in% row.names(metricCors))
+# Only the tree metrics not strongly correlated with richness
+statisticsIndices2 = which(names(simuData) %in% row.names(metricCors) & 
+                             !names(simuData) %in% richnessCorrelatedMetrics)
+
+# Indices for the 5 simulation processes (env, dis, mut, nic, com)
+predictorsIndices = c(14,16,18,20,22)
+predictors = colnames(simuData)[c(14,16,18,20,22)]
+numModelsPerPredictor = c(5, 7, 4, 7, 6)
+
+# 8 models (accounting for abbreviation changes post-experiment)
+modelAbbrevs = data.frame(original = c('ca', 'fh', 'gen', 'hs', 'la', 'pontarp', 've', 'xe'), 
+                    new = c('ca', 'fh', 'ge', 'hs', 'am', 'pw', 've', 'xe'),
+                    env = c(TRUE, TRUE, TRUE, TRUE, FALSE, TRUE, FALSE, FALSE),
+                    dis = c(TRUE, TRUE, TRUE, TRUE, FALSE, TRUE, TRUE, TRUE),
+                    nic = c(TRUE, FALSE, TRUE, TRUE, FALSE, TRUE, FALSE, FALSE),
+                    mut = c(TRUE, TRUE, TRUE, TRUE, TRUE, FALSE, TRUE, TRUE),
+                    com = c(TRUE, TRUE, TRUE, FALSE, TRUE, TRUE, FALSE, TRUE))
+
+models = modelAbbrevs$original
+```
+
+```{r}
+corrs = cor(simuData[, statisticsIndices1], use = "pairwise.complete.obs")
+
+metricNames = colnames(simuData)[statisticsIndices1]
+
+colnames(corrs) = metricNames
+rownames(corrs) = metricNames
+```
+
+### Saving Results
+
+```{r}
+resultsToSave$correlation$corrs = corrs
+```
+
+# Consistency analysis
+
+## Calculating correlation coefficients
+
+Calculating individual correlation coefficients between all tree shape metrics and simulation processes.
+
+```{r correlation, cache=cacheData}
+# NOTE: Change next line to statisticsIndices2 to view the smaller subset of metrics not strongly correlated with richness
+statisticsIndices = statisticsIndices1
+statistics = colnames(simuData)[statisticsIndices]
+nStats = length(statisticsIndices)
+
+numAgreements = matrix(nrow = length(statistics), 
+                 ncol = length(predictors),
+                 dimnames = list(statistics, predictors))
+
+numSigAgreements = meanCorr = medianCorr = numAgreements
+
+R2MatFull = pMatFull = array(
+    dim = c(length(statistics), length(predictors), length(models)),
+    dimnames = list(statistics, predictors, models)) 
+
+alpha = 0.01 # threshold for counting "significant" correlations
+
+for(i in 1:length(statisticsIndices)){
+  for(j in 1:length(predictorsIndices)){
+    R2 = pvalues = sign = rep(NA, length(models))
+    for(k in 1:length(models)){
+      tmp = simuData[simuData$model == models[k],]
+      x = scale(tmp[,statisticsIndices[i]])
+      y = tmp[,predictorsIndices[j]]
+      if(! all(is.na(y))){
+      
+        corRes = cor.test(x,y, method = "kendall")
+        
+        R2[k] = corRes$estimate
+        pvalues[k] = corRes$p.value
+        sign[k] = sign(corRes$estimate)
+
+      } else{
+        R2[k] = NA
+        pvalues[k] = NA
+        sign[k] = NA
+      }
+    }
+    R2MatFull[i,j,] = R2
+    pMatFull[i,j,] = pvalues
+    numAgreements[i,j] = max(sum(sign == 1, na.rm = T), sum(sign == -1, na.rm = T))
+    numSigAgreements[i,j] = max(sum(sign[pvalues <= alpha] == 1, na.rm = T), 
+                      sum(sign[pvalues <= alpha] == -1, na.rm = T))
+    meanCorr[i,j] = mean(R2, na.rm = T)
+    medianCorr[i,j] = median(R2, na.rm = T)
+  }
+}
+```
+
+```{r}
+# strict measure of agreement where all models show the same sign and p < alpha for each
+agreement = numSigAgreements[(numAgreements[,1] >= 5 & numSigAgreements[,1] >= 5) |
+                            (numAgreements[,2] >= 7 & numSigAgreements[,2] >= 7) | 
+                            (numAgreements[,3] >= 4 & numSigAgreements[,3] >= 4) | 
+                            (numAgreements[,4] >=7 & numSigAgreements[,4] >=7) | 
+                            (numAgreements[,5] >= 6 & numSigAgreements[,5] >= 6),]
+
+# less strict where all models show the same sign regardless of p
+agreement2 = numAgreements[(numAgreements[,1] >= 5 ) |
+                            (numAgreements[,2] >= 7 ) | 
+                            (numAgreements[,3] >= 4 ) | 
+                            (numAgreements[,4] >=7 ) | 
+                            (numAgreements[,5] >= 6),]
+
+```
+
+### Saving Results
+
+```{r}
+resultsToSave$consistency$R2MatFull = R2MatFull
+resultsToSave$consistency$pMatFull = pMatFull
+
+resultsToSave$consistency$agreement = agreement
+resultsToSave$consistency$agreement2 = agreement2
+
+resultsToSave$consistency$numAgreements = numAgreements
+resultsToSave$consistency$numSigAgreements = numSigAgreements
+resultsToSave$consistency$meanCorr = meanCorr
+resultsToSave$consistency$medianCorr = medianCorr
+```
+
+# Model inversion
+
+## Calculate within-model predictability
+
+We calculate within-model predictabilty on all metrics. In the script below
+
+-   For all tree statistics, use statisticsIndices1
+
+-   for tree statistics not strongly correlated with richness use statisticsIndices2
+
+```{r randomForest, cache=cacheData}
+statisticsIndices = statisticsIndices1
+
+statistics2 = colnames(simuData)[statisticsIndices]
+
+RFimportance = array(dim = c(length(statistics2), 
+                                length(predictors), 
+                                length(models)))
+
+predictability2R2 = array(dim = c(length(predictors), 
+                                  length(models)))
+rownames(predictability2R2) = predictors
+colnames(predictability2R2) = models
+predictabilityR2CV = predictability2R2
+rangerModels = purrr::array_tree(predictabilityR2CV)
+
+for(j in 1:length(predictorsIndices)){
+  for(k in 1:length(models)){
+    tmp = simuData[simuData$model == models[k],c(predictorsIndices[j], statisticsIndices)]
+    tmp = tmp[complete.cases(tmp),]
+    if(nrow(tmp) > 0){
+      form = as.formula(paste(predictors[j], "~ ."))
+      x = ranger(form, data = tmp, 
+                 importance = 'permutation',
+                scale.permutation.importance = T, 
+                num.trees = 5000,
+                num.threads = rangerTreads)
+      RFimportance[,j,k] = importance(x)     
+      predictability2R2[j,k] = x$r.squared
+      rangerModels[[j]][[k]] = x
+      
+      cvindices = sample(1:5, size = nrow(tmp), replace = T)
+      r2 = rep(NA, 5)
+      for(i in 1:5){
+         x = ranger(form, data = tmp[cvindices != i, ], 
+                    num.trees = 5000,
+                    num.threads = rangerTreads)
+         xp = predict(x, data = tmp[cvindices == i,] )
+         r2[i] = cor(tmp[cvindices == i, 1], xp$predictions)
+      }
+      predictabilityR2CV[j,k] = mean(r2)
+    } 
+  }
+}
+
+dimnames(RFimportance) = dimnames(R2MatFull)
+```
+
+### Saving Results
+
+```{r}
+resultsToSave$predictability$predictabilityR2CV = predictabilityR2CV
+resultsToSave$predictability$importance = RFimportance
+```
+
+## Predictability between models
+
+Because simulation models differ substantially in the size of trees they typically produce, we run the random forests and conduct model inversions using only the tree metrics that are not strongly correlated with richness.
+
+```{r}
+# env, dis, nic, mut, com
+#if TRUE, includes S-correlated
+
+crossPredictability = function(process, 
+                               num.trees = 5000, 
+                               allMetrics = FALSE) {
+  
+  # Specify metrics to use in RF (i.e. include richness-correlated metrics or not)
+  if (allMetrics) {
+    statisticsIndices = statisticsIndices1
+  } else {
+    statisticsIndices = statisticsIndices2
+  }
+
+  processes = c('env', 'dis', 'nic', 'mut', 'com')
+  processIndex = which(processes == process)
+  
+  modelsToInclude = modelAbbrevs[, process]
+  
+  modelsTMP = models[modelsToInclude]
+
+  CpredictabilityR2 = array(dim = c(length(modelsTMP), length(modelsTMP)))
+
+    for(k in 1:length(modelsTMP)){
+      train = simuData[simuData$model == modelsTMP[k],
+                       c(predictorsIndices[processIndex],
+                         statisticsIndices)]
+      train = train[complete.cases(train),]
+      if(nrow(train) > 0){
+        form = as.formula(paste(predictors[processIndex], "~ ."))
+        x = ranger(form, data = train, 
+                   num.trees = num.trees,
+                   num.threads = rangerTreads)
+      } 
+      for(j in 1:length(modelsTMP)){
+        test = simuData[simuData$model == modelsTMP[j],
+                        c(predictorsIndices[processIndex], statisticsIndices)]
+        test = test[complete.cases(test),]
+        if(nrow(test) > 0 & k != j){
+          y = predict(x, test)
+          CpredictabilityR2[k,j] = cor(y$predictions, test[,1], 
+                                         method = "kendall")
+        } # end if
+      } # end j testing 
+    } # end k training
+
+
+  rownames(CpredictabilityR2) = modelAbbrevs$new[modelAbbrevs$original %in% modelsTMP]
+  colnames(CpredictabilityR2) = modelAbbrevs$new[modelAbbrevs$original %in% modelsTMP]
+
+  # within-model predictability
+  tmp = predictabilityR2CV[processIndex,modelsToInclude]
+  for(i in 1:length(modelsTMP)) CpredictabilityR2[i,i] = tmp[i]
+
+  return(CpredictabilityR2)
+}
+
+  
+crossPredictabilityPlot = function(CpredictabilityR2,
+                                   cexValues = 1, cexMain = 2, 
+                                   cexAxis = 1.5, cexLab = 1.8,
+                                   mainText, cexLabSub = 1.2,
+                                   xCol = c("darkblue","blue",
+                                            "lightblue", "white",
+                                            "pink","red", "darkred"))
+{
+  
+  image.real(CpredictabilityR2, range = c(-1,1), xCol = xCol, cex.axis = cexAxis)
+  title(main = mainText, xlab = "predicted to trees from", 
+        cex.lab = cexLab, cex.main = cexMain)
+  mtext("Model trained on\n", 2, line = 2.7, cex = cexLab)
+  mtext("(modelers' assumption of reality)", 2, line = 3.4, cex = cexLabSub)
+  mtext("(what if reality works like this model?)", 1, line = 4.5, cex = cexLabSub)
+
+  # add values to cells
+  for(i in 1:nrow(CpredictabilityR2)){
+    for(j in 1:nrow(CpredictabilityR2)){
+      text((j-1)/(nrow(CpredictabilityR2) - 1),
+           1-(i-1)/(nrow(CpredictabilityR2) - 1), 
+           labels = format(round(CpredictabilityR2[i,j], digits = 2), nsmall = 2),
+           cex = cexValues)
+  
+    }
+  }
+}
+```
+
+```{r}
+speciationCP = crossPredictability(process = 'mut', num.trees = 5000, allMetrics = F)
+dispersalCP = crossPredictability(process = 'dis', num.trees = 5000, allMetrics = F)
+
+envCP = crossPredictability(process = 'env', num.trees = 5000, allMetrics = F)
+comCP = crossPredictability(process = 'com', num.trees = 5000, allMetrics = F)
+nicCP = crossPredictability(process = 'nic', num.trees = 5000, allMetrics = F)
+```
+
+### Saving Results
+
+```{r}
+resultsToSave$crossPredictability$speciationCP = speciationCP
+resultsToSave$crossPredictability$dispersalCP = dispersalCP
+
+resultsToSave$crossPredictability$envCP = envCP
+resultsToSave$crossPredictability$comCP = comCP
+resultsToSave$crossPredictability$nicCP = nicCP
+```
+
+# Case study
+
+General idea: Fit random forests for each simulation model on the simulated data to predict model parameter values from simulation-derived tree shape metrics. Then, use empirical tree shape metrics to infer process parameter values based on the fitted RF for each of these models.
+
+Note that in this simulation, RF that were fit excluded all tree shape metrics correlated to tree size.
+
+```{r caseStudy}
+# run a version of metricsForManyTrees() to get tree metric output for empirical sister clades (but that function assumes diff model ID naming convention, so had to manually tweak)
+allEmpiricalMetrics = read.table('derived_tree_data/empiricalSisterClades_treeStats.txt', header = T, sep = '\t')
+# Filter out hippo and primate clade pairs because of small size
+empiricalMetrics = filter(allEmpiricalMetrics, !simID %in% c(3,7))
+empiricalMetrics$clade = rep(c(1,2), 6)
+empiricalMetrics$pair = empiricalMetrics$simID
+empiricalMetrics$cladeName = c('Xenarthra', 'Afrotheria',
+                               'Carnivora/\nPerissodactyla', 'Cetartiodactyla',
+                               'Apodi', 'Trochili',
+                               'Rodentia', 'Lagomorpha',
+                               'Coraciiformes', 'Passeriformes',
+                               'Pelecaniformes', 'Ciconiiformes')
+empiricalMetrics$tree2 = word(empiricalMetrics$tree, sep = '.tre')
+
+# The metrics not strongly correlated with richness that were used for RF models
+empMetrics2 = empiricalMetrics[, colnames(simuData)[statisticsIndices2]]
+
+predictedValues2 = data.frame(tree = character(),
+                              model = character(), 
+                              predictor = character(),
+                              value = numeric())
+
+predictability2R2 = array(dim = c(length(predictors), length(models)))
+
+# For each combination of process (predictorsIndices) and simulation model, infer the strength of process for each empirical tree based on the RF
+
+
+  for(j in 1:length(predictorsIndices)){
+    for(k in 1:length(models)){
+      tmp = simuData[simuData$model == models[k],c(predictorsIndices[j],
+                                                   statisticsIndices2)]
+      tmp = tmp[complete.cases(tmp),]
+      if(nrow(tmp) > 0){
+        form = as.formula(paste(predictors[j], "~ ."))
+        x = ranger(form, data = tmp, 
+                   num.trees = 5000,
+                   num.threads = rangerTreads)
+        predictions = predict(x, data = empMetrics2)
+        
+      
+        tmpPredictions = data.frame(tree = word(empiricalMetrics$tree, 1, sep = fixed('.')),
+                                    model = rep(models[k], nrow(empMetrics2)),
+                                    predictor = rep(predictors[j], nrow(empMetrics2)),
+                                    value = predictions$predictions)
+      
+        predictedValues2 = rbind(predictedValues2, tmpPredictions)
+      
+      } # end if
+    } # end models
+  } # end predictors
+
+predictedValues2 = predictedValues2 %>%
+  arrange(predictor, model, tree)
+
+# Need to standardize the predicted parameter values relative to the range of values examined within a given model.  
+#   scaled = (x - min) / (max - min)          
+
+# So first need to identify min and max values for each model-parameter combo:
+# (this generates lots of warnings because of -Inf and Inf values but these can be ignored)
+modelParamRange = simuData %>%
+  group_by(model) %>%
+  summarize(env1Min = min(env1, na.rm = T),
+            env1Max = max(env1, na.rm = T),
+            com1Min = min(com1, na.rm = T),
+            com1Max = max(com1, na.rm = T),
+            dis1Min = min(dis1, na.rm = T),
+            dis1Max = max(dis1, na.rm = T),
+            nic1Min = min(nic1, na.rm = T),
+            nic1Max = max(nic1, na.rm = T),
+            mut1Min = min(mut1, na.rm = T),
+            mut1Max = max(mut1, na.rm = T))
+
+# Note that for some model/parameter combinations, the modeler varied parameter values uniformly on a log scale, while for others values varied uniformly on an arithmetic scale.
+
+# I examined the skewness values of all sets of values, and determined that each of the following combinations had a skewness of 0.7 or greater and merited being log-transformed prior to scaling. 
+# (Otherwise, the scaled values, e.g. in model 'hs' for dis1 or mut1 are close to 0)
+
+# ca: mut1, com1
+# hs: dis1, mut1
+# xe: dis1, mut1
+
+modelParamRange$com1Min[modelParamRange$model == 'ca'] = log10(modelParamRange$com1Min[modelParamRange$model == 'ca'])
+modelParamRange$com1Max[modelParamRange$model == 'ca'] = log10(modelParamRange$com1Max[modelParamRange$model == 'ca'])
+modelParamRange$dis1Min[modelParamRange$model %in% c('hs', 'xe')] = log10(modelParamRange$dis1Min[modelParamRange$model %in% c('hs', 'xe')])
+modelParamRange$dis1Max[modelParamRange$model %in% c('hs', 'xe')] = log10(modelParamRange$dis1Max[modelParamRange$model %in% c('hs', 'xe')])
+modelParamRange$mut1Min[modelParamRange$model %in% c('hs', 'xe', 'ca')] = log10(modelParamRange$mut1Min[modelParamRange$model %in% c('hs', 'xe', 'ca')])
+modelParamRange$mut1Max[modelParamRange$model %in% c('hs', 'xe', 'ca')] = log10(modelParamRange$mut1Max[modelParamRange$model %in% c('hs', 'xe', 'ca')])
+
+# Rearrange
+modelParamMinMax = data.frame(model = rep(modelParamRange$model, 5), 
+                              predictor = rep(c('env1', 'com1', 'dis1', 'nic1', 'mut1'), each = 8),
+                              minVal = c(modelParamRange$env1Min, modelParamRange$com1Min, modelParamRange$dis1Min, 
+                                         modelParamRange$nic1Min, modelParamRange$mut1Min),
+                              maxVal = c(modelParamRange$env1Max, modelParamRange$com1Max, modelParamRange$dis1Max, 
+                                         modelParamRange$nic1Max, modelParamRange$mut1Max))
+
+
+# Also need to log-transform the same parameter values in predictedValues2
+predictedValues2$value[predictedValues2$model == 'ca' & predictedValues2$predictor %in% c('mut1', 'com1')] = 
+  log10(predictedValues2$value[predictedValues2$model == 'ca' & predictedValues2$predictor %in% c('mut1', 'com1')])
+
+predictedValues2$value[predictedValues2$model %in% c('hs', 'xe') & predictedValues2$predictor %in% c('mut1', 'dis1')] = 
+  log10(predictedValues2$value[predictedValues2$model %in% c('hs', 'xe') & predictedValues2$predictor %in% c('mut1', 'dis1')])
+
+```
+
+Function for rescaling a value between the min and max such that the scaled value varies between 0 and 1. If either the min or max are NA, Inf, or -Inf, returns NA
+
+```{r}
+scaleFunction = function(value, min, max) {
+  
+  if (!min %in% c(-Inf, NA, Inf) & !max %in% c(-Inf, NA, Inf)) {
+    
+    scaledValue = (value - min) / (max - min)
+  
+  } else {
+  
+    scaledValue = NA
+  
+  }
+  return(scaledValue)
+}
+```
+
+```{r}
+modelColors = data.frame(model = models,
+                         newLabel = c('ca', 'fh', 'ge', 'hs', 'am', 'pw', 've', 'xe'),
+                         color = c(rgb(0,0,0),
+                                   rgb(230/255, 159/255, 0),
+                                   rgb(86/255, 180/255, 233/255),
+                                   rgb(0, 158/255, 115/255),
+                                   rgb(240/255, 228/255, 66/255),
+                                   rgb(0, 114/255, 178/255),
+                                   rgb(213/255, 94/255, 0),
+                                   rgb(204/255, 121/255, 167/255)))
+```
+
+```{r}
+scaledPredictions2 = predictedValues2 %>%
+  left_join(modelParamMinMax, by = c('model', 'predictor')) %>%
+  mutate(pair = str_extract(tree, "[1-9]"))
+
+scaledPredictions2$clade = rep(c(1, 2), nrow(predictedValues2)/2)
+
+scaledPredictions2$scaledValue = apply(scaledPredictions2[, c('value', 'minVal', 'maxVal')], 1, 
+                             function(x) scaleFunction(value = x[1], min = x[2], max = x[3]))
+
+scaledPredictions2 = left_join(scaledPredictions2, modelColors, by = 'model')
+```
+
+### Saving Results
+
+```{r}
+resultsToSave$casestudy$scaledPredictions2 = scaledPredictions2
+resultsToSave$casestudy$empiricalMetrics = empiricalMetrics
+```
+
+### Write file
+
+```{r, eval = chunkEval}
+ write.csv(scaledPredictions2, 'derived_tree_data/scaled_predictions_empirical_trees.csv', row.names = F)
+```
+
+# Reproducibility information and saving results
+
+```{r}
+sessionInfo()
+```
+
+```{r}
+bootstrap
+if(is.null(bootstrap)) bootstrap = 0
+str(resultsToSave)
+save(resultsToSave, file = paste("bootstrap/results-", bootstrap, ".Rdata", sep = ""))
+```
