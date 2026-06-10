@@ -48,6 +48,6 @@ Finally, run:
 
 **`Analysis.qmd`**: Complete analysis workflow given the USE_treeStats.txt and empiricalSisterClades_treeStats.txt output, or reading in the individual bootstrap run  Rdata files, that produces manuscript figures.  
 
-Sharing/Access information  
+##Sharing/Access information  
 
 These files are available in the Github repository: [https://github.com/sELDIG/PhyloModelComparison](https://github.com/sELDIG/PhyloModelComparison)  
